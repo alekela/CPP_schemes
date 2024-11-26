@@ -47,6 +47,7 @@ ax_rho.set_ylabel("rho")
 
 ax_P.plot(xs_start, Ps_start)
 ax_P.plot(xs_end, Ps_end)
+ax_P.scatter(xs_end, Ps_end, s=10)
 
 ax_U.plot(xs_start, us_start)
 ax_U.plot(xs_end, us_end)
