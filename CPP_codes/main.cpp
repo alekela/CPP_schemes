@@ -164,7 +164,7 @@ void old_krest() {
 
 
 
-void Artificial_viscosity(int Nx, double* rho, double* w, double* vb, double* p) {
+void Artificial_viscosity_Latter(int Nx, double* rho, double* w, double* vb, double* p) {
     const double mu_0 = 2.0;
     double fict = 1;
 
@@ -184,13 +184,13 @@ void Artificial_viscosity(int Nx, double* rho, double* w, double* vb, double* p)
 }
 
 
-void Artificial_linear(int Nx, double* rho, double* w, double* vb, double* p, double h) { //s - mass
-    const double nu_0 = 2.0;
+void Artificial_linear(int Nx, double* rho, double* w, double* vb, double* p) { //s - mass
+    const double nu_0 = 1.0;
     double fict = 1;
 
     for (int i = 0; i < Nx; ++i) {
         if ((vb[i + 1] - vb[i]) < 0) {
-            w[i] = -nu_0 * rho[i] * (vb[i + 1] - vb[i]) / (rho[i + 1] - rho[i]) / h;
+            w[i] = -nu_0 * rho[i] * (vb[i + 1] - vb[i]);
         }
         else {
             w[i] = 0.0;
@@ -268,8 +268,8 @@ void new_krest() {
 
     for (int n = 0; n < Nt; n++) {
 
-        // Artificial_viscosity(Nx, rho.data(), w.data(), u.data(), P.data());
-         //Artificial_linear(Nx, rho.data(), w.data(), u.data(), P.data(), mass.data());
+        Artificial_viscosity_Latter(Nx, rho.data(), w.data(), u.data(), P.data());
+        Artificial_linear(Nx, rho.data(), w.data(), u.data(), P.data());
         tau = 1111;
         for (int i = 0; i < Nx; i++) {
             double sz = sqrt(P[i] / rho[i]);
