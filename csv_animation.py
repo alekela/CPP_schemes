@@ -64,7 +64,7 @@ else:
     print("Графики сохранены.")
 
 
-    video_path = f'CPP_schemes\\Videos\\{codename}_animation.mp4'
+    video_path = f'CPP_schemes\\Videos\\{codename}_animation.gif'
     image_path = f'CPP_schemes\\PNGs\\{codename}'
     images = []
     for file in os.listdir(image_path):
@@ -73,7 +73,7 @@ else:
     '''# Команда ffmpeg для создания видео
     cmd = [
         'ffmpeg',
-        '-framerate', '10',  # Частота кадров в секунду
+        '-framerate', '1',  # Частота кадров в секунду
         '-i', image_path,
         '-c:v', 'libx264',
         '-pix_fmt', 'yuv420p',

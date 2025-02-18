@@ -6,12 +6,12 @@
 #include <cmath>
 
 
-void writeCSV(std::string name, std::vector<double> grid_P, std::vector<double> u, std::vector<double> P, std::vector<double> rho, double t) {
+void writeCSV(std::string name, std::vector<double> grid_P, std::vector<double> u, std::vector<double> P, std::vector<double> rho, double t, int fict) {
     std::ofstream outfile(name);
     std::string tmp;
     tmp = "Time,X,Rho,P,U\n";
     outfile << tmp;
-    for (int i = 0; i < P.size(); i++) {
+    for (int i = fict; i < P.size() - fict; i++) {
         tmp = "";
         tmp += std::to_string(t) + ',';
         tmp += std::to_string(grid_P[i]) + ',';
@@ -37,7 +37,7 @@ void Boundary(int state, std::vector<double>* u, double v0) {
 
 
 void Artificial_viscosity(int Nx, double* rho, double* vb, double* dP, int state) { //s - mass
-    const double nu_0 = 1.0;
+    const double nu_0 = 4.5e-4;
     const double mu_0 = 2.0;
     double fict = 1;
     if (state == 1) { // linear
@@ -71,16 +71,16 @@ void krest_steel() {
     int Nx = 1000;
     int Nt = 10000;
     double x_start = 0;
-    double x_end = 50;
+    double x_end = 1;
     double t_start = 0;
     double t_end = 0.2;
     double tau;
     double h_start = (x_end - x_start) / Nx;
     double gamma = 1.4;
-    double mu = 79.3 * 1.e9; //atm
-    double Y0 = 0.3 * 1.e9; //atm
+    double mu = 79.3 * 1.e9; //Pa
+    double Y0 = 0.3 * 1.e9; //Pa
     double PLAP = 1;
-    double P0 = 1; //atm
+    double P0 = 100000; //Pa
     double K = 156. * 1.e9;
     double rho0 = 7850;
     double u0 = 150.;
@@ -132,8 +132,7 @@ void krest_steel() {
     std::string title = "CSVs\\";
     title += filename;
     title += "\\Iter=000.csv";
-    writeCSV(title, center_grid, u, P, rho, t_start);
-    writeCSV(title, center_grid, u, P, rho, t_start);
+    writeCSV(title, center_grid, u, P, rho, t_start, 1);
 
     double t = 0;
     int iter = 0;
@@ -165,18 +164,17 @@ void krest_steel() {
         for (int j = 1; j < Nx - 1; j++) {
             new_rho[j] = mass[j] / (grid[j + 1] - grid[j]);
         }
-        new_rho[0] = new_rho[1];
 
         for (int j = 1; j < Nx - 1; j++) {
             double first, second, third;
             first = (mass[j] * P[j - 1] + mass[j - 1] * P[j]) / (mass[j] + mass[j - 1]) + 0.5 * (dP_vis[j] + dP_vis[j - 1]);
             second = (mass[j + 1] * P[j + 1] + mass[j] * P[j + 1]) / (mass[j + 1] + mass[j]) + 0.5 * (dP_vis[j] + dP_vis[j + 1]);
             third = (u[j + 1] + u[j]) * (u[j + 1] + u[j]) - (new_u[j + 1] + new_u[j]) * (new_u[j + 1] + new_u[j]);
-            new_I[j] = I[j] + tau / mass[j] * (first * new_u[j] - new_u[j + 1] * second + 1. / 8. * third);
+            new_I[j] = I[j] + tau / mass[j] * (first * new_u[j] - new_u[j + 1] * second) + 1. / 8. * third;
         }
 
         for (int j = 1; j < Nx - 1; j++) {
-            new_S_x[j] = S_x[j] + 2. * mu * (2. / 3. * (1 / rho[j] - 1 / new_rho[j]) / (1 / rho[j] + 1 / new_rho[j]) - tau * (new_u[j + 1] - new_u[j]) / (grid[j + 1] - grid[j])); /* 1/rho */
+            new_S_x[j] = S_x[j] + 2. * mu * (2. / 3. * (1 / new_rho[j] - 1 / rho[j]) / (1 / rho[j] + 1 / new_rho[j]) - tau * (new_u[j + 1] - new_u[j]) / (grid[j + 1] - grid[j])); /* 1/rho */
         }
         // new_S_x[0] = new_S_x[1];
         // new_S_x[j-1] = new_S_x[j-2];
@@ -211,7 +209,7 @@ void krest_steel() {
             title += "\\Iter=";
             title += std::to_string(iter);
             title += ".csv";
-            writeCSV(title, center_grid, u, P, rho, t);
+            writeCSV(title, center_grid, u, P, rho, t, 1);
         }
     }
     if (t >= t_end) {
@@ -225,7 +223,7 @@ void krest_steel() {
     title += "\\Iter=";
     title += std::to_string(iter);
     title += ".csv";
-    writeCSV(title, center_grid, u, P, rho, t);
+    writeCSV(title, center_grid, u, P, rho, t, 1);
 }
 
 

@@ -6,12 +6,12 @@
 #include <cmath>
 
 
-void writeCSV(std::string name, std::vector<double> grid_P, std::vector<double> u, std::vector<double> P, std::vector<double> rho, double t) {
+void writeCSV(std::string name, std::vector<double> grid_P, std::vector<double> u, std::vector<double> P, std::vector<double> rho, double t, int fict) {
     std::ofstream outfile(name);
     std::string tmp;
     tmp = "Time,X,Rho,P,U\n";
     outfile << tmp;
-    for (int i = 0; i < P.size(); i++) {
+    for (int i = fict; i < P.size() - fict; i++) {
         tmp = "";
         tmp += std::to_string(t) + ',';
         tmp += std::to_string(grid_P[i]) + ',';
@@ -69,9 +69,9 @@ void Artificial_viscosity(int Nx, double* rho, double* vb, double* dP, int state
 
 void krest_detonate() {
     int Nx = 1000;
-    int Nt = 10000;
+    int Nt = 5000;
     double x_start = 0;
-    double x_end = 50;
+    double x_end = 1;
     double t_start = 0;
     double t_end = 0.2;
     double tau;
@@ -80,7 +80,7 @@ void krest_detonate() {
     double mu = 79.3 * 1.e9; //Pa
     double Y0 = 0.3 * 1.e9; //Pa
     double PLAP = 1;
-    double P0 = 100000; //Pad
+    double P0 = 100000; //Pa
     double K = 156. * 1.e9;
     double rho0 = 7850;
     double Q = 2000000;
@@ -133,7 +133,7 @@ void krest_detonate() {
     std::string title = "CSVs\\";
     title += filename;
     title += "\\Iter=000.csv";
-    writeCSV(title, center_grid, u, P, rho, t_start);
+    writeCSV(title, center_grid, u, P, rho, t_start, 1);
 
     double t = 0;
     int iter = 0;
@@ -172,7 +172,7 @@ void krest_detonate() {
             first = (mass[j] * P[j - 1] + mass[j - 1] * P[j]) / (mass[j] + mass[j - 1]) + 0.5 * (dP_vis[j] + dP_vis[j - 1]);
             second = (mass[j + 1] * P[j + 1] + mass[j] * P[j + 1]) / (mass[j + 1] + mass[j]) + 0.5 * (dP_vis[j] + dP_vis[j + 1]);
             third = (u[j + 1] + u[j]) * (u[j + 1] + u[j]) - (new_u[j + 1] + new_u[j]) * (new_u[j + 1] + new_u[j]);
-            new_I[j] = I[j] + tau / mass[j] * (first * new_u[j] - new_u[j + 1] * second + 1. / 8. * third);
+            new_I[j] = I[j] + tau / mass[j] * (first * new_u[j] - new_u[j + 1] * second) + 1. / 8. * third;
         }
 
         double tmp;
@@ -213,7 +213,7 @@ void krest_detonate() {
             title += "\\Iter=";
             title += std::to_string(iter);
             title += ".csv";
-            writeCSV(title, center_grid, u, P, rho, t);
+            writeCSV(title, center_grid, u, P, rho, t, 1);
         }
     }
     if (t >= t_end) {
@@ -227,7 +227,7 @@ void krest_detonate() {
     title += "\\Iter=";
     title += std::to_string(iter);
     title += ".csv";
-    writeCSV(title, center_grid, u, P, rho, t);
+    writeCSV(title, center_grid, u, P, rho, t, 1);
 }
 
 
