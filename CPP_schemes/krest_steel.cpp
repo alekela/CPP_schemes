@@ -24,13 +24,14 @@ void writeCSV(std::string name, std::vector<double> grid_P, std::vector<double> 
 }
 
 
-void Boundary(int state, std::vector<double> u, std::vector<double> P, std::vector<double> rho, double v0) {
-    u[0] = v0;
-    if (state == 0) { // stenka
-        u[u.size() - 2] = 0;
+void Boundary(int state, std::vector<double>* u, double v0) {
+    (*u)[0] = v0;
+    (*u)[1] = v0;
+    if (state == 0) { // free end
+        (*u)[u->size() - 2] = 0;
     }
     else if (state == 1) { // reflection
-        u[u.size() - 2] = -u[u.size() - 1];
+        (*u)[u->size() - 2] = -(*u)[u->size() - 1];
     }
 }
 
@@ -67,8 +68,8 @@ void Artificial_viscosity(int Nx, double* rho, double* vb, double* dP, int state
 
 
 void krest_steel() {
-    int Nx = 500;
-    int Nt = 2000;
+    int Nx = 1000;
+    int Nt = 10000;
     double x_start = 0;
     double x_end = 50;
     double t_start = 0;
@@ -82,7 +83,8 @@ void krest_steel() {
     double P0 = 1; //atm
     double K = 156. * 1.e9;
     double rho0 = 7850;
-    double u0 = 50.;
+    double u0 = 150.;
+    std::string filename = "KrestSteel";
 
     double CFL = 0.5;
 
@@ -115,7 +117,7 @@ void krest_steel() {
     for (int j = 0; j < Nx + 1; j++) {
         u[j] = 0;
         if (j != Nx) {
-            P[j] = 1;
+            P[j] = 0;
             rho[j] = rho0;
         }
     }
@@ -127,8 +129,11 @@ void krest_steel() {
         mass[j] = (h_start * rho[j]);
         S_x[j] = 0;
     }
-
-    writeCSV("CSVs\\KrestSteel\\Iter=000.csv", center_grid, u, P, rho, t_start);
+    std::string title = "CSVs\\";
+    title += filename;
+    title += "\\Iter=000.csv";
+    writeCSV(title, center_grid, u, P, rho, t_start);
+    writeCSV(title, center_grid, u, P, rho, t_start);
 
     double t = 0;
     int iter = 0;
@@ -144,11 +149,10 @@ void krest_steel() {
 
         Artificial_viscosity(Nx, rho.data(), u.data(), dP_vis.data(), 1); // 1 - linear, 2 - Latter
 
-        for (int j = 1; j < Nx; j++) {
+        for (int j = 1; j < Nx + 1; j++) {
             new_u[j] = ((-tau * 2. / (mass[j] + mass[j - 1]) * (P[j] - P[j - 1] + dP_vis[j] - dP_vis[j - 1])) + u[j]);
         }
-        new_u[0] = u0;
-        new_u[1] = u0;
+        Boundary(1, &new_u, u0);
 
         for (int j = 1; j < Nx; j++) {
             grid[j] = new_u[j] * tau + grid[j];
@@ -202,10 +206,12 @@ void krest_steel() {
         t += tau;
         iter++;
         if (iter % iterwrite == 0) {
-            std::string filename = "CSVs\\KrestSteel\\Iter=";
-            filename += std::to_string(iter);
-            filename += ".csv";
-            writeCSV(filename, center_grid, u, P, rho, t);
+            title = "CSVs\\";
+            title += filename;
+            title += "\\Iter=";
+            title += std::to_string(iter);
+            title += ".csv";
+            writeCSV(title, center_grid, u, P, rho, t);
         }
     }
     if (t >= t_end) {
@@ -214,10 +220,12 @@ void krest_steel() {
     else {
         std::cout << "Solve stopped by iterations number";
     }
-    std::string filename = "CSVs\\KrestSteel\\Iter=";
-    filename += std::to_string(iter);
-    filename += ".csv";
-    writeCSV(filename, center_grid, u, P, rho, t);
+    title = "CSVs\\";
+    title += filename;
+    title += "\\Iter=";
+    title += std::to_string(iter);
+    title += ".csv";
+    writeCSV(title, center_grid, u, P, rho, t);
 }
 
 
