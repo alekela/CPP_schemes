@@ -1,7 +1,11 @@
 import matplotlib.pyplot as plt
+import os
 
 
-with open("CPP_codes\\CSVs\\Initial_state.csv") as f:
+codename = "KrestSteel"
+theory = False
+
+with open(f"CPP_schemes\\CSVs\\{codename}\\Iter=000.csv") as f:
     labels = f.readline()
     data = f.readlines()
 
@@ -14,7 +18,12 @@ Ps_start = list(map(lambda x: float(x[3]), data))
 us_start = list(map(lambda x: float(x[4]), data))
 
 
-with open("CPP_codes\\CSVs\\last_step_KrestSteel.csv") as f:
+n = []
+for file in os.listdir(f"CPP_schemes\\CSVs\\{codename}"):
+    n.append(int(file.split('.')[0][5:]))
+
+n = max(n)
+with open(f"CPP_schemes\\CSVs\\{codename}\\Iter={n}.csv") as f:
     labels = f.readline()
     data2 = f.readlines()
 
@@ -26,18 +35,19 @@ rhos_end = list(map(lambda x: float(x[2]), data2))
 Ps_end = list(map(lambda x: float(x[3]), data2))
 us_end = list(map(lambda x: float(x[4]), data2))
 
+if theory:
+    with open("CPP_schemes\\CSVs\\{codename}\\Theory.csv") as f:
+        labels = f.readline()
+        data_theory = f.readlines()
 
-with open("CPP_codes\\CSVs\\Theory_graph.csv") as f:
-    labels = f.readline()
-    data_theory = f.readlines()
+    data_theory = list(map(lambda x: x.split(','), data_theory))
 
-data_theory = list(map(lambda x: x.split(','), data_theory))
+    t_theory = list(map(lambda x: float(x[0]), data_theory))
+    xs_theory = list(map(lambda x: float(x[1]), data_theory))
+    rhos_theory = list(map(lambda x: float(x[2]), data_theory))
+    Ps_theory = list(map(lambda x: float(x[3]), data_theory))
+    us_theory = list(map(lambda x: float(x[4]), data_theory))
 
-t_theory = list(map(lambda x: float(x[0]), data_theory))
-xs_theory = list(map(lambda x: float(x[1]), data_theory))
-rhos_theory = list(map(lambda x: float(x[2]), data_theory))
-Ps_theory = list(map(lambda x: float(x[3]), data_theory))
-us_theory = list(map(lambda x: float(x[4]), data_theory))
 
 
 fig_P = plt.figure()
@@ -58,19 +68,29 @@ ax_rho.set_xlabel("x")
 ax_rho.set_ylabel("rho")
 
 
-ax_P.plot(xs_theory, Ps_theory, color='orange')
-ax_P.plot(xs_end, Ps_end, color='#1f77b4')
-ax_P.scatter(xs_end, Ps_end, s=7, color='#1f77b4')
-ax_P.legend([f"Theory at t={t_theory[0]}", f"Scheme at t={t_end[0]}"])
+if theory:
+    ax_P.plot(xs_theory, Ps_theory, color='orange')
+    ax_P.plot(xs_end, Ps_end, color='#1f77b4')
+    ax_P.scatter(xs_end, Ps_end, s=7, color='#1f77b4')
+    ax_P.legend([f"Scheme at t={t_end[0]}", f"Theory at t={t_theory[0]}"])
+    
+    ax_U.plot(xs_theory, us_theory, color='orange')
+    ax_U.plot(xs_end, us_end, color='#1f77b4')
+    ax_U.legend([f"Scheme at t={t_end[0]}", f"Theory at t={t_theory[0]}"])
+    
+    ax_rho.plot(xs_theory, rhos_theory,color='orange')
+    ax_rho.plot(xs_end, rhos_end, color='#1f77b4')
+    ax_rho.legend([f"Scheme at t={t_end[0]}", f"Theory at t={t_theory[0]}"])
 
-ax_U.plot(xs_theory, us_theory, color='orange')
-ax_U.plot(xs_end, us_end, color='#1f77b4')
-ax_U.legend([f"Theory at t={t_theory[0]}", f"Scheme at t={t_end[0]}"])
-
-
-ax_rho.plot(xs_theory, rhos_theory,color='orange')
-ax_rho.plot(xs_end, rhos_end, color='#1f77b4')
-ax_rho.legend([f"Theory at t={t_theory[0]}", f"Scheme at t={t_end[0]}"])
-
+else:
+    ax_P.plot(xs_end, Ps_end, color='#1f77b4')
+    ax_P.scatter(xs_end, Ps_end, s=7, color='#1f77b4')
+    ax_P.legend([f"Scheme at t={t_end[0]}"])
+    
+    ax_U.plot(xs_end, us_end, color='#1f77b4')
+    ax_U.legend([f"Scheme at t={t_end[0]}"])
+    
+    ax_rho.plot(xs_end, rhos_end, color='#1f77b4')
+    ax_rho.legend([f"Scheme at t={t_end[0]}"])
 
 plt.show()
