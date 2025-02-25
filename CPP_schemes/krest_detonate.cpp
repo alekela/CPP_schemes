@@ -78,7 +78,7 @@ void krest_detonate() {
     long double h_start = (x_end - x_start) / Nx;
     long double gamma = 1.4;
     long double P0 = 100000; // Pa
-    long double rho0 = 7850;
+    long double rho0 = 44;
     long double Q = 2000000; // J/kg
     long double Vcj = gamma / (gamma + 1) / rho0;
     long double u0 = sqrt(2 * (gamma - 1) / (gamma + 1) * Q);
@@ -175,17 +175,14 @@ void krest_detonate() {
         long double tmp;
         for (int j = 1; j < Nx - 1; j++) {
             tmp = 1. - (1. / rho0 - 1. / new_rho[j]) / (1. / rho0 - Vcj);
-            if (tmp < 0) {
-                tmp = 0;
-            }
-            if (tmp > 1) {
-                tmp = 1;
-            }
             if (tmp > W[j] && tmp < 0.9) {
                 new_W[j] = 0;
             }
-            else {
+            else if (tmp < W[j]) {
                 new_W[j] = tmp;
+            }
+            else {
+                new_W[j] = 1.;
             }
         }
 
