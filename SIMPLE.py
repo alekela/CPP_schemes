@@ -4,8 +4,12 @@ import matplotlib.pyplot as plt
 
 def Boundary(P, u, uleft, pright):
     u[0] = uleft
+    u[1] = uleft
+    P[1] = P[2]
     P[0] = P[1]
     P[-1] = pright
+    P[-2] = pright
+    u[-2] = u[-3]
     u[-1] = u[-2]
 
 
@@ -29,12 +33,10 @@ def SIMPLE():
 
     P = [0 for i in range(N)];
     u = [0 for i in range(N)];
-    rho = [0 for i in range(N)];
     I = [0 for i in range(N)]
     for j in range(N):
         P[j] = P0
         u[j] = u0
-        rho[j] = rho0
     Boundary(P, u, uleft, pright)
     for t in range(1):
         iter = 0
@@ -82,8 +84,15 @@ def SIMPLE():
         print("Сошлось за", iter, "итераций")
     print(*u)
     print(*P)
-    plt.plot(grid_centers, P)
-    #plt.plot(grid_centers, u)
+    fig = plt.figure()
+    ax = fig.add_subplot()
+    fig2 = plt.figure()
+    ax2 = fig2.add_subplot()
+    ax.set_title("P")
+    ax2.set_title("U")
+
+    ax.plot(grid_centers, P)
+    ax2.plot(grid_centers, u)
     plt.show()
 
 

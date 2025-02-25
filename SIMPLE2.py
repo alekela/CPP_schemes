@@ -2,11 +2,23 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
-def Boundary(P, u, uleft, pright):
-    u[0] = uleft
-    P[0] = P[1]
-    P[-1] = pright
-    u[-1] = u[-2]
+def Boundary(Nx, Ny, P, ux, uy, uxleft, pright):
+    for i in range(Ny):
+        ux[i][0] = uxleft
+        ux[i][1] = uxleft
+        uy[i][0] = 0
+        uy[i][1] = 0
+        P[i][-1] = pright
+        P[i][-2] = pright
+    for j in range(Nx):
+        ux[0][j] = 0
+        ux[1][j] = 0
+        uy[0][j] = 0
+        uy[1][j] = 0
+        ux[-1][j] = 0
+        ux[-2][j] = 0
+        uy[-1][j] = 0
+        uy[-2][j] = 0
 
 
 def SIMPLE():
@@ -14,13 +26,13 @@ def SIMPLE():
     xend = 5
     ystart = 0
     yend = 1
-    Nx = 5
-    Ny = 5
+    Nx = 10
+    Ny = 10
     dx = (xend - xstart) / Nx
     dy = (yend - ystart) / Ny
 
     rho0 = 1
-    rhoshar = 1e9
+    rhoshar = 10
     nu = 0.01
     u0 = 0
     P0 = 0
@@ -33,18 +45,15 @@ def SIMPLE():
     grid = [[(xstart + i * dx, ystart + j * dy) for i in range(Nx + 1)] for j in range(Ny + 1)]
     grid_centers = [[((grid[j + 1][i + 1][0] + grid[j][i][0]) / 2, (grid[j + 1][i + 1][1] + grid[j][i][1]) / 2) for j in range(Ny)] for i in range(Nx)]
 
-    P = [[0 for _ in range(Nx)] for _ in range(Ny)];
-    ux = [[0 for _ in range(Nx)] for _ in range(Ny)];
-    uy = [[0 for _ in range(Nx)] for _ in range(Ny)]
-    # Boundary
-    for i in range(Ny):
-        ux[i][0] = uxleft
-        uy[i][0] = uyleft
+    P = [[P0 for _ in range(Nx)] for _ in range(Ny)];
+    ux = [[u0 for _ in range(Nx)] for _ in range(Ny)];
+    uy = [[u0 for _ in range(Nx)] for _ in range(Ny)]
+    Boundary(Nx, Ny, P, ux, uy, uxleft, pright)
 
     for t in range(1):
         iter = 0
         flag = True
-        while (flag):
+        while (flag and iter < 10):
             dux = [[0 for _ in range(Nx)] for _ in range(Ny)];
             duy = [[0 for _ in range(Nx)] for _ in range(Ny)];
             for i in range(1, Ny - 1):
@@ -55,19 +64,8 @@ def SIMPLE():
                     duy[i][j] = uy[i][j] + tau * (-ux[i][j] * (uy[i][j] - uy[i][j - 1]) / dx - uy[i][j] * (uy[i][j] - uy[i - 1][j]) / dy
                                                   + nu * (uy[i][j + 1] - 2 * uy[i][j] + uy[i][j - 1]) / dx / dx
                                                   + nu * (uy[i + 1][j] - 2 * uy[i][j] + uy[i - 1][j]) / dy / dy)
-            for i in range(Ny):
-                dux[i][0] = uxleft
-                duy[i][0] = uyleft
-                dux[i][-1] = dux[i][-2]
-                duy[i][-1] = duy[i][-2]
 
-            for j in range(Nx):
-                dux[0][j] = dux[1][j]
-                duy[0][j] = -duy[1][j]
-                dux[-1][j] = dux[-2][j]
-                duy[-1][j] = -duy[-2][j]
-
-
+            Boundary(Nx, Ny, P, dux, duy, uxleft, pright)
 
             coeffs_dp = [[0 for _ in range((Nx - 2) * (Ny - 2))] for _ in range((Nx - 2) * (Ny - 2))]
             res_dp = [0 for _ in range((Nx - 2) * (Ny - 2))]
@@ -143,9 +141,10 @@ def SIMPLE():
                     ic = i + 1
                     jc = j + 1
                     tmp_dP_matrix[ic][jc] = tmp_dP[i * (Ny - 2) + j]
-            for i in range(Ny):
-                tmp_dP_matrix[i][0] = tmp_dP_matrix[i][1]
-                tmp_dP_matrix[i][-1] = 0
+
+            #for i in range(Ny):
+            #    tmp_dP_matrix[i][0] = tmp_dP_matrix[i][1]
+            #    tmp_dP_matrix[i][-1] = 0
             # здесь еще гр условия сверху и снизу, но давления нулевые, так что да
 
             new_P = [[0 for _ in range(Nx)] for _ in range(Ny)];
@@ -163,12 +162,7 @@ def SIMPLE():
                     new_ux[i][j] = dux[i][j] - tau / rho / 2 / dx * (tmp_dP_matrix[i][j + 1] - tmp_dP_matrix[i][j - 1])
                     new_uy[i][j] = duy[i][j] - tau / rho / 2 / dy * (tmp_dP_matrix[i + 1][j] - tmp_dP_matrix[i - 1][j])
 
-            for i in range(Ny):
-                new_P[i][0] = tmp_dP_matrix[i][1]
-                new_P[i][-1] = 0
-            # здесь еще гр условия сверху и снизу, но давления нулевые, так что да
-
-            # ЕЩЁ граничные условия на скорость
+            Boundary(Nx, Ny, new_P, new_ux, new_uy, uxleft, pright)
 
             for i in range(1, Ny - 1):
                 for j in range(1, Nx - 1):
@@ -182,14 +176,14 @@ def SIMPLE():
                 flag = False
         print("Сошлось за", iter, "итераций")
     print("P:")
-    for i in P:
+    for i in P[::-1]:
         print(*i)
     print()
     print("ux:")
-    for i in ux:
+    for i in ux[::-1]:
         print(*i)
     print("uy:")
-    for i in uy:
+    for i in uy[::-1]:
         print(*i)
     print()
     #plt.plot(grid_centers, P)
