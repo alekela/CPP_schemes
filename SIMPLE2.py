@@ -26,8 +26,8 @@ def SIMPLE():
     xend = 5
     ystart = 0
     yend = 1
-    Nx = 10
-    Ny = 10
+    Nx = 20
+    Ny = 20
     dx = (xend - xstart) / Nx
     dy = (yend - ystart) / Ny
 
@@ -42,7 +42,10 @@ def SIMPLE():
     prec = 1e-5
     tau = 0.001
 
-    grid = [[(xstart + i * dx, ystart + j * dy) for i in range(Nx + 1)] for j in range(Ny + 1)]
+    x = np.array([xstart + i * dx for i in range(Nx + 1)])
+    y = np.array([ystart + i * dy for i in range(Ny + 1)])
+    X, Y = np.meshgrid(x, y)
+    grid = [[(X[i][j], Y[i][j]) for i in range(Nx + 1)] for j in range(Ny + 1)]
     grid_centers = [[((grid[j + 1][i + 1][0] + grid[j][i][0]) / 2, (grid[j + 1][i + 1][1] + grid[j][i][1]) / 2) for j in range(Ny)] for i in range(Nx)]
 
     P = [[P0 for _ in range(Nx)] for _ in range(Ny)];
@@ -75,7 +78,7 @@ def SIMPLE():
                     ic = i + 1
                     jc = j + 1
                     # уравнение круга: (x - 1.5) ** 2 + (y - 0.5) ** 2 <= 0.5**2
-                    if (grid_centers[ic][jc][0] - 1.5) ** 2 + (grid_centers[ic][jc][1] - 0.5) ** 2 <= 0.25:
+                    if (grid_centers[ic][jc][0] - 1.5) ** 2 + (grid_centers[ic][jc][1] - 0.5) ** 2 <= 0.25**2:
                         rho = rhoshar
                     else:
                         rho = rho0
@@ -154,7 +157,7 @@ def SIMPLE():
                 for j in range(1, Nx - 1):
                     new_P[i][j] = P[i][j] + tmp_dP_matrix[i][j]
                     # уравнение круга: (x - 1.5) ** 2 + (y - 0.5) ** 2 <= 0.5**2
-                    if (grid_centers[i][j][0] - 1.5) ** 2 + (grid_centers[i][j][1] - 0.5) ** 2 <= 0.25:
+                    if (grid_centers[i][j][0] - 1.5) ** 2 + (grid_centers[i][j][1] - 0.5) ** 2 <= 0.25**2:
                         rho = rhoshar
                     else:
                         rho = rho0
@@ -175,6 +178,12 @@ def SIMPLE():
             if R < prec:
                 flag = False
         print("Сошлось за", iter, "итераций")
+    for i in range(Ny):
+        for j in range(Nx):
+            if (grid_centers[i][j][0] - 1.5) ** 2 + (grid_centers[i][j][1] - 0.5) ** 2 <= 0.25**2:
+                P[i][j] = -np.inf
+                ux[i][j] = -np.inf
+                uy[i][j] = -np.inf
     print("P:")
     for i in P[::-1]:
         print(*i)
@@ -186,6 +195,12 @@ def SIMPLE():
     for i in uy[::-1]:
         print(*i)
     print()
+    fig, ax = plt.subplots(1, 1)
+
+    c = ax.pcolormesh(X, Y, P, cmap='jet')
+    fig.colorbar(c, ax=ax)
+
+    plt.show()
     #plt.plot(grid_centers, P)
     #plt.plot(grid_centers, u)
     #plt.show()
