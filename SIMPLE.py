@@ -16,23 +16,23 @@ def Boundary(P, u, uleft, pright):
 def SIMPLE():
     xstart = 0
     xend = 1
-    N = 10
+    N = 20
     dx = (xend - xstart) / N
 
     rho0 = 1
     nu = 0.01
     u0 = 0
-    P0 = 0
+    P0 = 100
     uleft = 1
-    pright = 0
+    pright = 0.1
     prec = 1e-5
-    tau = 0.001
+    tau = 0.00001
 
     grid = [xstart + i * dx for i in range(N + 1)]
     grid_centers = [(grid[i + 1] + grid[i]) / 2 for i in range(N)]
 
-    P = [0 for i in range(N)];
-    u = [0 for i in range(N)];
+    P = [1 for _ in range(N // 2)] + [0.1 for _ in range(N // 2)]
+    u = [0 for i in range(N)]
     I = [0 for i in range(N)]
     for j in range(N):
         P[j] = P0
@@ -41,12 +41,16 @@ def SIMPLE():
     for t in range(1):
         iter = 0
         flag = True
-        while (flag):
+        while (flag and iter < 100):
             tmp_u = [0 for _ in range(N)]
             coeffs_dp = [[0 for _ in range(N - 2)] for _ in range(N - 2)]
             res_dp = [0 for _ in range(N - 2)]
             for i in range(1, N - 1):
                 tmp_u[i] = u[i] + tau * (-u[i] * (u[i] - u[i - 1]) / dx + nu * (u[i + 1] - 2 * u[i] + u[i - 1]) / dx / dx)
+                if iter != 0:
+                    tmp_u[i] -= tau * (P[i + 1] - P[i - 1]) / 2 / dx / rho0
+                if iter == 1:
+                    print((P[i + 1] - P[i - 1]) / 2 / dx)
             tmp_u[0] = uleft
 
             for j in range(1, N - 1):
@@ -72,15 +76,16 @@ def SIMPLE():
                 new_P[j] = P[j] + tmp_dP[j]
                 new_u[j] = tmp_u[j] - tau / rho0 / 2 / dx * (tmp_dP[j + 1] - tmp_dP[j - 1])
 
+            iter += 1
             for j in range(1, N - 1):
                 P[j] = new_P[j]
-                u[j] = new_u[j]
             Boundary(P, u, uleft, pright)
 
-            iter += 1
-            R = max([abs(u[j + 1] - u[j - 1]) / 2 / dx for j in range(1, N - 1)])
+            R = max([abs(new_u[j + 1] - new_u[j - 1]) / 2 / dx for j in range(1, N - 1)])
             if R < prec:
                 flag = False
+        for j in range(1, N - 1):
+            u[j] = new_u[j]
         print("Сошлось за", iter, "итераций")
     print(*u)
     print(*P)

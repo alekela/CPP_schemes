@@ -39,7 +39,7 @@ def plot_and_save(data, iteration, filename_prefix):
     plt.close()
 
 
-codename = "KrestDetonate"
+codename = "KrestSteel"
 # Путь к папке с CSV-файлами
 data_folder = f'CPP_schemes\\CSVs\\{codename}\\'
 

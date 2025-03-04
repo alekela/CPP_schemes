@@ -37,8 +37,8 @@ void Boundary(int state, std::vector<double>* u, double v0) {
 
 
 void Artificial_viscosity(int Nx, double* rho, double* vb, double* dP, int state) { //s - mass
-    const double nu_0 = 4.5e-4;
-    const double mu_0 = 2.0;
+    const double nu_0 = 50;
+    const double mu_0 = 50;
     double fict = 1;
     if (state == 1) { // linear
         for (int i = 1; i < Nx - 1; ++i) {
@@ -83,7 +83,7 @@ void krest_steel() {
     double P0 = 100000; //Pa
     double K = 156. * 1.e9;
     double rho0 = 7850;
-    double u0 = 150.;
+    double u0 = 15.;
     std::string filename = "KrestSteel";
 
     double CFL = 0.5;
