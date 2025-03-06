@@ -29,12 +29,12 @@ def plot_and_save(x, time, rho, P, u, iteration, im_path):
     plt.ylabel('U')
 
     # Сохранение изображения
-    plt.tight_layout()
+    # plt.tight_layout()
     plt.savefig(f'{im_path}\\Iter={iteration}.png')
     plt.close()
 
 
-codename = "KrestSteel"
+codename = "KrestDetonate"
 # Путь к папке с CSV-файлами
 data_folder = f'CPP_schemes\\CSVs\\{codename}\\'
 video_path = f'CPP_schemes\\Videos\\{codename}_animation.gif'
