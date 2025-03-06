@@ -27,18 +27,18 @@ void writeCSV(std::string name, std::vector<double> grid_P, std::vector<double> 
 void Boundary(int state, std::vector<double>* u, double v0) {
     (*u)[0] = v0;
     (*u)[1] = v0;
-    if (state == 0) { // free end
+    if (state == 0) { // reflection
         (*u)[u->size() - 2] = 0;
     }
-    else if (state == 1) { // reflection
-        (*u)[u->size() - 2] = -(*u)[u->size() - 1];
+    else if (state == 1) { // flux wall
+        (*u)[u->size() - 1] = -(*u)[u->size() - 2];
     }
 }
 
 
 void Artificial_viscosity(int Nx, double* rho, double* vb, double* dP, int state) { //s - mass
     const double nu_0 = 4.5e-4;
-    const double mu_0 = 2.0;
+    const double mu_0 = 4.5e-7;
     double fict = 1;
     if (state == 1) { // linear
         for (int i = 1; i < Nx - 1; ++i) {
@@ -55,7 +55,7 @@ void Artificial_viscosity(int Nx, double* rho, double* vb, double* dP, int state
     else if (state == 2) { // Latter
         for (int i = 1; i < Nx - 1; ++i) {
             if ((vb[i + 1] - vb[i]) < 0) {
-                dP[i] = -mu_0 * rho[i] * std::abs(vb[i + 1] - vb[i]) * (vb[i + 1] - vb[i]);
+                dP[i] = -mu_0 * 0.5 * rho[i] * std::abs(vb[i + 1] + vb[i]) * (vb[i + 1] - vb[i]);
             }
             else {
                 dP[i] = 0.0;
@@ -69,7 +69,7 @@ void Artificial_viscosity(int Nx, double* rho, double* vb, double* dP, int state
 
 void krest_steel() {
     int Nx = 1000;
-    int Nt = 10000;
+    int Nt = 1000;
     double x_start = 0;
     double x_end = 1;
     double t_start = 0;
@@ -83,7 +83,7 @@ void krest_steel() {
     double P0 = 100000; //Pa
     double K = 156. * 1.e9;
     double rho0 = 7850;
-    double u0 = 150.;
+    double u0 = 1.5;
     std::string filename = "KrestSteel";
 
     double CFL = 0.5;
@@ -131,27 +131,27 @@ void krest_steel() {
     }
     std::string title = "CSVs\\";
     title += filename;
-    title += "\\Iter=000.csv";
+    title += "\\Iter=0.csv";
     writeCSV(title, center_grid, u, P, rho, t_start, 1);
 
     double t = 0;
     int iter = 0;
-    int iterwrite = 100;
+    int iterwrite = 50;
     while (t < t_end && iter < Nt) {
         tau = (t_end - t_start) / Nt;
         for (int j = 0; j < Nx; j++) {
-            // double sz = sound_speed(P[j], rho[j], gamma);
-            tau = std::min(tau, CFL * (grid[j + 1] - grid[j]) / (std::abs(u[j]) + 5000.));
+            double sz = std::sqrt(K * rho0) / rho[j];
+            tau = std::min(tau, CFL * (grid[j + 1] - grid[j]) / (std::abs(u[j]) + sz));
         }
 
         std::vector<double> new_u(Nx + 1), new_P(Nx), new_rho(Nx), new_mass(Nx), new_I(Nx), new_S_x(Nx);
 
-        Artificial_viscosity(Nx, rho.data(), u.data(), dP_vis.data(), 1); // 1 - linear, 2 - Latter
+        Artificial_viscosity(Nx, rho.data(), u.data(), dP_vis.data(), 2); // 1 - linear, 2 - Latter
+        Boundary(0, &u, u0);
 
         for (int j = 1; j < Nx + 1; j++) {
             new_u[j] = ((-tau * 2. / (mass[j] + mass[j - 1]) * (P[j] - P[j - 1] + dP_vis[j] - dP_vis[j - 1])) + u[j]);
         }
-        Boundary(1, &new_u, u0);
 
         for (int j = 1; j < Nx; j++) {
             grid[j] = new_u[j] * tau + grid[j];
@@ -174,7 +174,7 @@ void krest_steel() {
         }
 
         for (int j = 1; j < Nx - 1; j++) {
-            new_S_x[j] = S_x[j] + 2. * mu * (2. / 3. * (1 / new_rho[j] - 1 / rho[j]) / (1 / rho[j] + 1 / new_rho[j]) - tau * (new_u[j + 1] - new_u[j]) / (grid[j + 1] - grid[j])); /* 1/rho */
+            new_S_x[j] = S_x[j] + 2. * mu * (2. / 3. * (1 / new_rho[j] - 1 / rho[j]) / (1 / rho[j] + 1 / new_rho[j]) - tau * (new_u[j + 1] - new_u[j]) / (grid[j + 1] - grid[j]));
         }
         // new_S_x[0] = new_S_x[1];
         // new_S_x[j-1] = new_S_x[j-2];

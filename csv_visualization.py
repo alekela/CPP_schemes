@@ -5,7 +5,7 @@ import os
 codename = "KrestSteel"
 theory = False
 
-with open(f"CPP_schemes\\CSVs\\{codename}\\Iter=000.csv") as f:
+with open(f"CPP_schemes\\CSVs\\{codename}\\Iter=0.csv") as f:
     labels = f.readline()
     data = f.readlines()
 
@@ -20,7 +20,7 @@ us_start = list(map(lambda x: float(x[4]), data))
 
 n = []
 for file in os.listdir(f"CPP_schemes\\CSVs\\{codename}"):
-    n.append(int(file.split('.')[0][5:]))
+    n.append(int(file.split("=")[1].split('.')[0]))
 
 n = max(n)
 with open(f"CPP_schemes\\CSVs\\{codename}\\Iter={n}.csv") as f:
