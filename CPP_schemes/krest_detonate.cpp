@@ -28,6 +28,7 @@ void Boundary(int state, std::vector<long double>* u, long double v0) {
     (*u)[0] = v0;
     (*u)[1] = v0;
     if (state == 0) { // free end
+        (*u)[u->size() - 1] = 0;
         (*u)[u->size() - 2] = 0;
     }
     else if (state == 1) { // reflection
@@ -38,10 +39,10 @@ void Boundary(int state, std::vector<long double>* u, long double v0) {
 
 void Artificial_viscosity(int Nx, long double* rho, long double* vb, long double* dP, int state) { //s - mass
     const long double nu_0 = 1.0;
-    const long double mu_0 = 2.0;
+    const long double mu_0 = 4e-5;
     long double fict = 1;
     if (state == 1) { // linear
-        for (int i = 1; i < Nx - 1; ++i) {
+        for (int i = 0; i < Nx; ++i) {
             if ((vb[i + 1] - vb[i]) < 0) {
                 dP[i] = -nu_0 * rho[i] * (vb[i + 1] - vb[i]);
             }
@@ -49,42 +50,38 @@ void Artificial_viscosity(int Nx, long double* rho, long double* vb, long double
                 dP[i] = 0.0;
             }
         }
-        dP[0] = dP[1];
-        dP[Nx - 1] = dP[Nx - 2];
     }
     else if (state == 2) { // Latter
-        for (int i = 1; i < Nx - 1; ++i) {
+        for (int i = 0; i < Nx; ++i) {
             if ((vb[i + 1] - vb[i]) < 0) {
-                dP[i] = -mu_0 * rho[i] * std::abs(vb[i + 1] - vb[i]) * (vb[i + 1] - vb[i]);
+                dP[i] = -mu_0 * 0.5 * rho[i] * (vb[i + 1] + vb[i]) * (vb[i + 1] - vb[i]);
             }
             else {
                 dP[i] = 0.0;
             }
         }
-        dP[0] = dP[1];
-        dP[Nx - 1] = dP[Nx - 2];
     }
 }
 
 
 void krest_detonate() {
-    int Nx = 1000;
-    int Nt = 5000;
+    int Nx = 5;
+    int Nt = 2;
     long double x_start = 0;
-    long double x_end = 1;
+    long double x_end = 100;
     long double t_start = 0;
     long double t_end = 0.2;
     long double tau;
     long double h_start = (x_end - x_start) / Nx;
     long double gamma = 1.4;
-    long double P0 = 10000; // Pa
-    long double rho0 = 43;
-    long double Q = 200000; // J/kg
+    long double P0 = 1e5; // Pa
+    long double rho0 = 44;
+    long double Q = 2e6; // J/kg
     long double Vcj = gamma / (gamma + 1) / rho0;
     long double u0 = sqrt(2 * (gamma - 1) / (gamma + 1) * Q);
     std::string filename = "KrestDetonate";
 
-    long double CFL = 0.2;
+    long double CFL = 0.5;
 
     // Boundary conditions
     long double u_left, u_right, P_left, P_right, rho_left, rho_right;
@@ -93,7 +90,7 @@ void krest_detonate() {
 
     std::vector<long double> grid(Nx + 1);
     std::vector<long double> center_grid(Nx);
-    for (int j = 0; j < Nx ; j++) {
+    for (int j = 0; j < Nx + 1; j++) {
         grid[j] = (x_start + h_start * j);
         if (j != Nx) {
             center_grid[j] = (x_start + h_start * j + h_start / 2);
@@ -119,8 +116,7 @@ void krest_detonate() {
             rho[j] = rho0;
         }
     }
-    u[0] = u0;
-    u[1] = u0;
+    Boundary(0, &u, u0);
 
     for (int j = 0; j < Nx; j++) {
         I[j] = P[j] / (gamma - 1) / rho[j];
@@ -129,29 +125,32 @@ void krest_detonate() {
     }
     std::string title = "CSVs\\";
     title += filename;
-    title += "\\Iter=000.csv";
+    title += "\\Iter=0.csv";
     writeCSV(title, center_grid, u, P, rho, t_start, 1);
 
     long double t = 0;
     int iter = 0;
-    int iterwrite = 100;
+    int iterwrite = 20;
     while (t < t_end && iter < Nt) {
-        tau = (t_end - t_start) / Nt;
+        tau = 1e6;
         for (int j = 0; j < Nx; j++) {
             long double sz = sqrt(gamma * P[j] / rho[j]);
-            tau = std::min(tau, CFL * (grid[j + 1] - grid[j]) / (std::abs(u[j]) + sz));
+            double temp = CFL * (grid[j + 1] - grid[j]) / (std::abs(u[j] + u[j + 1]) / 2. + sz);
+            if (temp < tau) {
+                tau = temp;
+            }
         }
 
         std::vector<long double> new_u(Nx + 1), new_P(Nx), new_rho(Nx), new_mass(Nx), new_I(Nx), new_W(Nx), new_T(Nx);
 
-        Artificial_viscosity(Nx, rho.data(), u.data(), dP_vis.data(), 1); // 1 - linear, 2 - Latter
+        Artificial_viscosity(Nx, rho.data(), u.data(), dP_vis.data(), 2); // 1 - linear, 2 - Latter
+
+        for (int j = 1; j < Nx; j++) {
+            new_u[j] = ((-tau * 2. / (mass[j] + mass[j - 1]) * (P[j] - P[j - 1]) + (dP_vis[j] - dP_vis[j - 1])) + u[j]);
+        }
+        Boundary(0, &new_u, u0);
 
         for (int j = 0; j < Nx + 1; j++) {
-            new_u[j] = ((-tau * 2. / (mass[j] + mass[j - 1]) * (P[j] - P[j - 1] + dP_vis[j] - dP_vis[j - 1])) + u[j]);
-        }
-        Boundary(1, &new_u, u0);
-
-        for (int j = 0; j < Nx; j++) {
             grid[j] = new_u[j] * tau + grid[j];
         }
 
@@ -159,10 +158,9 @@ void krest_detonate() {
             center_grid[j] = (grid[j] + grid[j + 1]) / 2.;
         }
 
-        for (int j = 1; j < Nx - 1; j++) {
+        for (int j = 0; j < Nx - 1; j++) {
             new_rho[j] = mass[j] / (grid[j + 1] - grid[j]);
         }
-        new_rho[0] = new_rho[1];
 
         for (int j = 1; j < Nx - 1; j++) {
             long double first, second, third;
@@ -175,10 +173,10 @@ void krest_detonate() {
         long double tmp;
         for (int j = 0; j < Nx; j++) {
             tmp = 1. - (1. / rho0 - 1. / new_rho[j]) / (1. / rho0 - Vcj);
-            if (tmp > W[j] && tmp < 0.9) {
+            if ((tmp > W[j]) && (tmp < 0.9)) {
                 new_W[j] = 0;
             }
-            else if (tmp < W[j]) {
+            else if (tmp <= W[j]) {
                 new_W[j] = tmp;
             }
             else {

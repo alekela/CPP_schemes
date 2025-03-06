@@ -109,7 +109,7 @@ void krest() {
             new_u[j] = ((-tau / mass[j] * (P[j] - P[j - 1])) + u[j]);
         }
 
-        for (int j = 1; j < Nx; j++) {
+        for (int j = 0; j < Nx + 1; j++) {
             grid[j] = new_u[j] * tau + grid[j];
         }
 

@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 import os
 
 
-codename = "KrestSteel"
+codename = "KrestDetonate"
 theory = False
 
 with open(f"CPP_schemes\\CSVs\\{codename}\\Iter=0.csv") as f:

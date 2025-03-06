@@ -38,10 +38,10 @@ void Boundary(int state, std::vector<double>* u, double v0) {
 
 void Artificial_viscosity(int Nx, double* rho, double* vb, double* dP, int state) { //s - mass
     const double nu_0 = 4.5e-4;
-    const double mu_0 = 4.5e-7;
+    const double mu_0 = 4.5e-5;
     double fict = 1;
     if (state == 1) { // linear
-        for (int i = 1; i < Nx - 1; ++i) {
+        for (int i = 0; i < Nx; ++i) {
             if ((vb[i + 1] - vb[i]) < 0) {
                 dP[i] = -nu_0 * rho[i] * (vb[i + 1] - vb[i]);
             }
@@ -49,11 +49,9 @@ void Artificial_viscosity(int Nx, double* rho, double* vb, double* dP, int state
                 dP[i] = 0.0;
             }
         }
-        dP[0] = dP[1];
-        dP[Nx - 1] = dP[Nx - 2];
     }
     else if (state == 2) { // Latter
-        for (int i = 1; i < Nx - 1; ++i) {
+        for (int i = 0; i < Nx; ++i) {
             if ((vb[i + 1] - vb[i]) < 0) {
                 dP[i] = -mu_0 * 0.5 * rho[i] * std::abs(vb[i + 1] + vb[i]) * (vb[i + 1] - vb[i]);
             }
@@ -61,8 +59,6 @@ void Artificial_viscosity(int Nx, double* rho, double* vb, double* dP, int state
                 dP[i] = 0.0;
             }
         }
-        dP[0] = dP[1];
-        dP[Nx - 1] = dP[Nx - 2];
     }
 }
 
@@ -149,11 +145,11 @@ void krest_steel() {
         Artificial_viscosity(Nx, rho.data(), u.data(), dP_vis.data(), 2); // 1 - linear, 2 - Latter
         Boundary(0, &u, u0);
 
-        for (int j = 1; j < Nx + 1; j++) {
+        for (int j = 1; j < Nx; j++) {
             new_u[j] = ((-tau * 2. / (mass[j] + mass[j - 1]) * (P[j] - P[j - 1] + dP_vis[j] - dP_vis[j - 1])) + u[j]);
         }
 
-        for (int j = 1; j < Nx; j++) {
+        for (int j = 0; j < Nx + 1; j++) {
             grid[j] = new_u[j] * tau + grid[j];
         }
 
