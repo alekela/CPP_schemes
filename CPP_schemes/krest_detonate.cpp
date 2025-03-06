@@ -77,9 +77,9 @@ void krest_detonate() {
     long double tau;
     long double h_start = (x_end - x_start) / Nx;
     long double gamma = 1.4;
-    long double P0 = 100000; // Pa
-    long double rho0 = 44;
-    long double Q = 2000000; // J/kg
+    long double P0 = 10000; // Pa
+    long double rho0 = 43;
+    long double Q = 200000; // J/kg
     long double Vcj = gamma / (gamma + 1) / rho0;
     long double u0 = sqrt(2 * (gamma - 1) / (gamma + 1) * Q);
     std::string filename = "KrestDetonate";
@@ -93,7 +93,7 @@ void krest_detonate() {
 
     std::vector<long double> grid(Nx + 1);
     std::vector<long double> center_grid(Nx);
-    for (int j = 0; j < Nx + 1; j++) {
+    for (int j = 0; j < Nx ; j++) {
         grid[j] = (x_start + h_start * j);
         if (j != Nx) {
             center_grid[j] = (x_start + h_start * j + h_start / 2);
@@ -146,7 +146,7 @@ void krest_detonate() {
 
         Artificial_viscosity(Nx, rho.data(), u.data(), dP_vis.data(), 1); // 1 - linear, 2 - Latter
 
-        for (int j = 1; j < Nx + 1; j++) {
+        for (int j = 0; j < Nx + 1; j++) {
             new_u[j] = ((-tau * 2. / (mass[j] + mass[j - 1]) * (P[j] - P[j - 1] + dP_vis[j] - dP_vis[j - 1])) + u[j]);
         }
         Boundary(1, &new_u, u0);
@@ -173,7 +173,7 @@ void krest_detonate() {
         }
 
         long double tmp;
-        for (int j = 1; j < Nx - 1; j++) {
+        for (int j = 0; j < Nx; j++) {
             tmp = 1. - (1. / rho0 - 1. / new_rho[j]) / (1. / rho0 - Vcj);
             if (tmp > W[j] && tmp < 0.9) {
                 new_W[j] = 0;
@@ -186,7 +186,7 @@ void krest_detonate() {
             }
         }
 
-        for (int j = 1; j < Nx - 1; j++) {
+        for (int j = 0; j < Nx; j++) {
             if (new_W[j] < 0.99) {
                 new_P[j] = (1 - new_W[j]) * (gamma - 1) * new_rho[j] * (new_I[j] + Q);
             }
