@@ -34,11 +34,11 @@ def plot_and_save(x, time, rho, P, u, iteration, im_path):
     plt.close()
 
 
-codename = "KrestDetonate"
+codename = "KrestSteel"
 # Путь к папке с CSV-файлами
-data_folder = f'CPP_schemes\\CSVs\\{codename}\\'
-video_path = f'CPP_schemes\\Videos\\{codename}_animation.gif'
-image_path = f'CPP_schemes\\PNGs\\{codename}'
+data_folder = f'CPP_codes\\CSVs\\{codename}\\'
+video_path = f'CPP_codes\\Videos\\{codename}_animation.gif'
+image_path = f'CPP_codes\\PNGs\\{codename}'
 
 steps = []
 for file in os.listdir(data_folder):

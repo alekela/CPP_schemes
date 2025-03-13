@@ -2,10 +2,10 @@ import matplotlib.pyplot as plt
 import os
 
 
-codename = "KrestDetonate"
+codename = "KrestSteel"
 theory = False
 
-with open(f"CPP_schemes\\CSVs\\{codename}\\Iter=0.csv") as f:
+with open(f"CPP_codes\\CSVs\\{codename}\\Iter=0.csv") as f:
     labels = f.readline()
     data = f.readlines()
 
@@ -19,11 +19,11 @@ us_start = list(map(lambda x: float(x[4]), data))
 
 
 n = []
-for file in os.listdir(f"CPP_schemes\\CSVs\\{codename}"):
+for file in os.listdir(f"CPP_codes\\CSVs\\{codename}"):
     n.append(int(file.split("=")[1].split('.')[0]))
 
 n = max(n)
-with open(f"CPP_schemes\\CSVs\\{codename}\\Iter={n}.csv") as f:
+with open(f"CPP_codes\\CSVs\\{codename}\\Iter={n}.csv") as f:
     labels = f.readline()
     data2 = f.readlines()
 
@@ -36,7 +36,7 @@ Ps_end = list(map(lambda x: float(x[3]), data2))
 us_end = list(map(lambda x: float(x[4]), data2))
 
 if theory:
-    with open("CPP_schemes\\CSVs\\{codename}\\Theory.csv") as f:
+    with open("CPP_codes\\CSVs\\{codename}\\Theory.csv") as f:
         labels = f.readline()
         data_theory = f.readlines()
 
