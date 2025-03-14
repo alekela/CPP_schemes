@@ -130,7 +130,7 @@
     <None Include="test_input.csv" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="Krest_tension.cpp" />
+    <ClCompile Include="Krest_CJDetonation.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

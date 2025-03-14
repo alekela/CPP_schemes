@@ -25,7 +25,7 @@ void writeCSV(std::string name, std::vector<double> grid, std::vector<double> u,
 void Boundary(std::vector<double>* u, double v0) {
 	(*u)[0] = v0;
 	(*u)[1] = v0;
-	(*u)[u->size() - 1] = (*u)[u->size() - 2];
+	(*u)[u->size() - 2] = (*u)[u->size() - 3]; // flux wall
 }
 
 
@@ -50,7 +50,7 @@ int krest_tension() {
 	double Y0 = 0.3 * 1e9, K = 156. * 1e9, mu = 79.3 * 1e9, rho0 = 7850.;
 	double u0 = 150.;
 
-	double t_start = 0., t_end = 0.0001, L = 1., CFL = 0.3;
+	double t_start = 0., t_end = 0.0003, L = 1., CFL = 0.3;
 	double h_start = L / N;
 	double tau;
 
@@ -139,6 +139,7 @@ int krest_tension() {
 			}
 		}
 		new_P[0] = new_P[1];
+		new_P[Nx - 2] = new_P[Nx - 3];
 
 
 		// new data
