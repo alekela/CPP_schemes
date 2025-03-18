@@ -54,8 +54,8 @@ def SIMPLE():
         [((grid[j + 1][i + 1][0] + grid[j][i][0]) / 2, (grid[j + 1][i + 1][1] + grid[j][i][1]) / 2) for j in range(Ny)]
         for i in range(Nx)]
 
-    P = [[P0 for _ in range(Nx)] for _ in range(Ny)];
-    ux = [[u0 for _ in range(Nx)] for _ in range(Ny)];
+    P = [[P0 for _ in range(Nx)] for _ in range(Ny)]
+    ux = [[u0 for _ in range(Nx)] for _ in range(Ny)]
     uy = [[u0 for _ in range(Nx)] for _ in range(Ny)]
     Boundary(Nx, Ny, P, ux, uy, uxleft, pright)
 

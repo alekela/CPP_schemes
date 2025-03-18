@@ -41,22 +41,24 @@ def SIMPLE():
     for t in range(1):
         iter = 0
         flag = True
-        while (flag):
+        while (flag and iter < 5):
             tmp_u = [0 for _ in range(N)]
             coeffs_dp = [[0 for _ in range(N - 2)] for _ in range(N - 2)]
             res_dp = [0 for _ in range(N - 2)]
             for i in range(1, N - 1):
-                tmp_u[i] = u[i] + tau * (-u[i] * (u[i] - u[i - 1]) / dx + nu * (u[i + 1] - 2 * u[i] + u[i - 1]) / dx / dx)
+                tmp_u[i] = u[i] + tau * (- (P[i + 1] - P[i - 1]) / 2. / dx / rho0 - u[i] * (u[i] - u[i - 1]) / dx + nu * (u[i + 1] - 2 * u[i] + u[i - 1]) / dx / dx)
             tmp_u[0] = uleft
+            print("U_starred:", tmp_u)
 
             for j in range(1, N - 1):
                 if j == 1:
-                    coeffs_dp[j - 1][j - 1] = -1
+                    coeffs_dp[j - 1][j - 1] = -2
                     coeffs_dp[j - 1][j] = 1
                     res_dp[j - 1] = dx / tau / 2 * rho0 * (tmp_u[j + 1] - tmp_u[j - 1])
                 elif j == N - 2:
-                    coeffs_dp[j - 1][j - 1] = 1
-                    res_dp[j - 1] = pright
+                    coeffs_dp[j - 1][j - 1] = -2
+                    coeffs_dp[j - 1][j - 2] = 1
+                    res_dp[j - 1] = -pright
                 else:
                     coeffs_dp[j - 1][j - 1] = -2
                     coeffs_dp[j - 1][j] = 1
@@ -64,9 +66,8 @@ def SIMPLE():
                     res_dp[j - 1] = dx / tau / 2 * rho0 * (tmp_u[j + 1] - tmp_u[j - 1])
 
             tmp_dP = np.linalg.solve(coeffs_dp, res_dp)
-            tmp_dP = [tmp_dP[0]] + list(tmp_dP) + [pright]
-
-            new_P = [0 for _ in range(N)];
+            tmp_dP = [tmp_dP[0]] + list(tmp_dP) + [0]
+            new_P = [0 for _ in range(N)]
             new_u = [0 for _ in range(N)]
             for j in range(1, N - 1):
                 new_P[j] = P[j] + tmp_dP[j]
@@ -79,6 +80,10 @@ def SIMPLE():
 
             iter += 1
             R = max([abs(u[j + 1] - u[j - 1]) / 2 / dx for j in range(1, N - 1)])
+            print("Невязка: ", R)
+            print("Правая часть давления:", res_dp)
+            print("U:", u)
+            print()
             if R < prec:
                 flag = False
         print("Сошлось за", iter, "итераций")
