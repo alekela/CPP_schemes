@@ -6,85 +6,80 @@
 #include <cmath>
 #include <stdlib.h>
 
-typedef std::vector<double> vec;
-typedef std::vector<std::vector<double>> mtrx;
+typedef std::vector<double> vec1d;
+typedef std::vector<std::vector<double>> vec2d;
 
-struct Params
-{
-	double CFL;
-	double gamma;
-	double dx, dy;
-	int scheme_type;
-	double Lx, Ly;
-	double T;
-	int Nx, Ny;
-	double Quser;	
-	int fict;			
 
-	Params()
-	{
-		this->CFL = 0.05;
-		this->gamma = 1.4;
-		this->Nx = 20;
-		this->Lx = 1.0;
-		this->Ly = 1.0;
-		this->Ny = 20;
-		this->T = 1.;
-		this->Quser = 2.;
-		this->dx = Lx / Nx;
-		this->dy = Ly / Ny;
-		this->scheme_type = 1;
-		if (scheme_type == 0) this->fict = 1;
-		else this->fict = 2;
-	}
+struct InitialState {
+	int nx = 5;
+	int ny = 5;
+	int fict = 1;
+	int Nx = nx + 2 * fict;
+	int Ny = ny + 2 * fict;
 
-	Params(int Nx_, int Ny_, int type, double cfl_, double Lx_, double Ly_, double T_, double gamma_, double Quser_)
-	{
-		this->CFL = cfl_;
-		this->gamma = gamma_;
-		this->scheme_type = type;
+	double x_start = 0;
+	double x_end = 1;
+	double y_start = 0;
+	double y_end = 1;
+	double Lx = x_end - x_start;
+	double Ly = y_end - y_start;
+	double hx = Lx / nx;
+	double hy = Ly / ny;
 
-		if (type == 0) this->fict = 1;
-		else this->fict = 2;
+	double t_end = 0.25;
+	double time = 0;
+	double tau;
 
-		this->Nx = Nx_;// +2 * this->fict;
-		this->Lx = Lx_;
-		this->Ly = Ly_;
-		this->Ny = Ny_;// +2 * this->fict;
-		this->T = T_;
-		this->Quser = Quser_;
-		this->dx = Lx / Nx_;
-		this->dy = Ly / Ny_;
-	}
+	double CFL = 0.05;
+	double gamma = 1.4;
+	double Q = 2;
+
+    double u_left, u_right, P_left, P_right, rho_left, rho_right;
 };
 
-void data_to_file(int Nx, int Ny, int fict, double gamma, double time, vec x, vec y, mtrx p, mtrx vx, mtrx vy, mtrx rho) {
-	char name_file[100];
-	//sprintf_s(name_file, "out/csv/out_%f_.csv", time);
-	sprintf(name_file, "out/csv/out_%f_.csv", time);
-	std::ofstream outfile(name_file, std::ios::app);
-	outfile << "x;y;p;vx;vy;r;e;\n";
-	for (int i = fict; i < Nx - fict; ++i) {
-		for (int j = fict; j < Ny - fict; ++j) {
-			outfile << x[i] << ";" << y[j] << ";" << p[i][j] << ";" << vx[i][j] << ";" << vy[i][j] << ";" << rho[i][j] << ";" << p[i][j] / ((gamma - 1.0) * rho[i][j]) << "\n";
+
+void writeCSV(std::string filename, int iter, vec1d x, vec1d y, vec2d ux, vec2d uy, vec2d P, vec2d rho, double t, int Nx, int Ny, int fict) {
+	std::string name = "CSVs\\";
+	name += filename;
+	name += "\\Iter=";
+	name += std::to_string(iter);
+	name += ".csv";
+
+	std::ofstream outfile(name);
+	std::string tmp;
+	tmp = "Time,X,Y,Rho,P,Ux,Uy\n";
+	outfile << tmp;
+	for (int i = fict; i < Ny - fict; i++) {
+		for (int j = fict; j < Nx - fict; j++) {
+			tmp = "";
+			tmp += std::to_string(t) + ',';
+			tmp += std::to_string(x[j]) + ',';
+			tmp += std::to_string(y[i]) + ',';
+			tmp += std::to_string(rho[i][j]) + ',';
+			tmp += std::to_string(P[i][j]) + ',';
+			tmp += std::to_string(ux[i][j]) + ',';
+			tmp += std::to_string(uy[i][j]) + '\n';
+			outfile << tmp;
 		}
 	}
+	outfile.close();
 }
 
+
 // from conservative
-void convert_from_conservative(double gamma, double& p, double& vx, double& vy, double& rho, double& m, double& impx, double& impy, double& e)
+void convert_from_conservative(double gamma, double& p, double& vx, double& vy, double& rho, double& m, double& impx, double& impy, double& rhoe)
 {
-	p = (gamma - 1.0) * (e - 0.5 * (pow(impx, 2.0) + pow(impy, 2.0)) * m);
+	p = (gamma - 1.0) * (rhoe - 0.5 * (pow(impx, 2.0) + pow(impy, 2.0)) * m);
 	vx = impx / m;
 	vy = impy / m;
 	rho = m;
 }
 // to conservative
-void convert_to_conservative(double gamma, double& p, double& vx, double& vy, double& rho, double& m, double& impx, double& impy, double& e)
+void convert_to_conservative(double gamma, double& p, double& vx, double& vy, double& rho, double& m, double& impx, double& impy, double& rhoe)
 {
 	m = rho;
 	impx = rho * vx;
-	e = 0.5 * rho * (pow(vx, 2.0) + pow(vy, 2.0)) + p / (gamma - 1.0);
+	rhoe = 0.5 * rho * (pow(vx, 2.0) + pow(vy, 2.0)) + p / (gamma - 1.0);
 }
 
 
@@ -130,24 +125,24 @@ void boundary_cond_y(double p, double vx, double vy, double rho, double& pb, dou
 	}
 }
 
-void grid(Params* params, vec& x, vec& y, vec& xc, vec& yc)
-{
-	for (int i = 0; i < params->Nx + 1; ++i) {
-		x[i] = 0.0 + (i - params->fict) * params->dx;
+
+void grid(InitialState IS, vec1d& x, vec1d& y, vec1d& xc, vec1d& yc) {
+	for (int i = 0; i < IS.Nx + 1; ++i) {
+		x[i] = 0.0 + (i - IS.fict) * IS.hx;
 	}
-	for (int i = 0; i < params->Nx; ++i) {
+	for (int i = 0; i < IS.Nx; ++i) {
 		xc[i] = 0.5 * (x[i] + x[i + 1]);
 	}
-	for (int i = 0; i < params->Ny + 1; ++i) {
-		y[i] = 0.0 + (i - params->fict) * params->dy;
+	for (int i = 0; i < IS.Ny + 1; ++i) {
+		y[i] = 0.0 + (i - IS.fict) * IS.hy;
 	}
 
-	for (int i = 0; i < params->Ny; ++i) {
+	for (int i = 0; i < IS.Ny; ++i) {
 		yc[i] = 0.5 * (y[i] + y[i + 1]);
 	}
 }
 
-void init_krujok(int Nx, int Ny, double gamma, vec xc, vec yc, mtrx& p, mtrx& vx, mtrx& vy, mtrx& rho, mtrx& m, mtrx& impx, mtrx& impy, mtrx& e) {
+void init_krujok(int Nx, int Ny, double gamma, vec1d xc, vec1d yc, vec2d& p, vec2d& vx, vec2d& vy, vec2d& rho, vec2d& m, vec2d& impx, vec2d& impy, vec2d& rhoe) {
 	double R = 0.1;
 	double p1, vx1, vy1, rho1, p2, vx2, vy2, rho2, d;
 
@@ -179,19 +174,19 @@ void init_krujok(int Nx, int Ny, double gamma, vec xc, vec yc, mtrx& p, mtrx& vx
 				vy[i][j] = vy2;
 				rho[i][j] = rho2;
 			}
-			convert_to_conservative(gamma, p[i][j], vx[i][j], vy[i][j], rho[i][j], m[i][j], impx[i][j], impy[i][j], e[i][j]);
+			convert_to_conservative(gamma, p[i][j], vx[i][j], vy[i][j], rho[i][j], m[i][j], impx[i][j], impy[i][j], rhoe[i][j]);
 		}
 	}
 }
 
-double get_dt(Params* params, mtrx p, mtrx rho, mtrx vx, mtrx vy, vec x, vec y)
+double get_dt(InitialState IS, vec2d p, vec2d rho, vec2d vx, vec2d vy, vec1d x, vec1d y)
 {
 	double dt = 10.0e6;
 	double c, dt_step;
-	for (int i = params->fict; i < params->Nx - params->fict; ++i) {
-		for (int j = params->fict; j < params->Ny - params->fict; ++j) {
-			c = sqrt(params->gamma * p[i][j] / rho[i][j]);
-			dt_step = std::min(abs(params->CFL * (x[i + 1] - x[i]) / (abs(vx[i][j]) + c)), abs(params->CFL * (y[j + 1] - y[j]) / (abs(vy[i][j]) + c)));
+	for (int i = IS.fict; i < IS.Nx - IS.fict; ++i) {
+		for (int j = IS.fict; j < IS.Ny - IS.fict; ++j) {
+			c = sqrt(IS.gamma * p[i][j] / rho[i][j]);
+			dt_step = std::min(abs(IS.CFL * (x[i + 1] - x[i]) / (abs(vx[i][j]) + c)), abs(IS.CFL * (y[j + 1] - y[j]) / (abs(vy[i][j]) + c)));
 			if (dt_step < dt) {
 				dt = dt_step;
 			}
@@ -496,23 +491,23 @@ void Riemann_solver(double gamma, double Quser, double PL, double DL, double UL,
 }
 
 void Godunov_flux_x(double gamma, double p, double vx, double vy, double rho, double& Fm, double& Fimpx, double& Fimpy, double& Fe) {
-	double m, impx, impy, e;
-	//convert_to_conservative(double gamma, double& p, double& vx, double& vy, double& rho, double& m, double& impx, double& impy, double& e)
-	convert_to_conservative(gamma, p, vx, vy, rho, m, impx, impy, e);
+	double m, impx, impy, rhoe;
+	//convert_to_conservative(double gamma, double& p, double& vx, double& vy, double& rho, double& m, double& impx, double& impy, double& rhoe)
+	convert_to_conservative(gamma, p, vx, vy, rho, m, impx, impy, rhoe);
 	Fm = rho * vx;
 	Fimpx = Fm * vx + p;
 	Fimpy = Fm * vy;
-	Fe = (p + e) * vx;
+	Fe = (p + rhoe) * vx;
 }
 
 void Godunov_flux_y(double gamma, double p, double vx, double vy, double rho, double& Fm, double& Fimpx, double& Fimpy, double& Fe) {
-	double m, impx, impy, e;
-	//convert_to_conservative(double gamma, double& p, double& vx, double& vy, double& rho, double& m, double& impx, double& impy, double& e)
-	convert_to_conservative(gamma, p, vx, vy, rho, m, impx, impy, e);
+	double m, impx, impy, rhoe;
+	//convert_to_conservative(double gamma, double& p, double& vx, double& vy, double& rho, double& m, double& impx, double& impy, double& rhoe)
+	convert_to_conservative(gamma, p, vx, vy, rho, m, impx, impy, rhoe);
 	Fm = rho * vy;
 	Fimpx = Fm * vx;
 	Fimpy = Fm * vy + p;
-	Fe = (p + e) * vy;
+	Fe = (p + rhoe) * vy;
 }
 
 void Godunov_method_x(double gamma, double Quser, double ml, double impxl, double impyl, double el,
@@ -522,7 +517,7 @@ void Godunov_method_x(double gamma, double Quser, double ml, double impxl, doubl
 	double pl, vxl, vyl, rhol;
 	double pr, vxr, vyr, rhor;
 
-	//convert_to_conservative(gamma, p, vx, vy, rho, m, impx, impy, e);
+	//convert_to_conservative(gamma, p, vx, vy, rho, m, impx, impy, rhoe);
 
 	convert_from_conservative(gamma, pl, vxl, vyl, rhol, ml, impxl, impyl, el);
 	convert_from_conservative(gamma, pr, vxr, vyr, rhor, mr, impxr, impyr, er);
@@ -547,7 +542,7 @@ void Godunov_method_y(double gamma, double Quser, double md, double impxd, doubl
 	double pd, vxd, vyd, rhod;
 	double pu, vxu, vyu, rhou;
 
-	//convert_to_conservative(gamma, p, vx, vy, rho, m, impx, impy, e);
+	//convert_to_conservative(gamma, p, vx, vy, rho, m, impx, impy, rhoe);
 
 	convert_from_conservative(gamma, pd, vxd, vyd, rhod, md, impxd, impyd, ed);
 	convert_from_conservative(gamma, pu, vxu, vyu, rhou, mu, impxu, impyu, eu);
@@ -567,20 +562,17 @@ void Godunov_method_y(double gamma, double Quser, double md, double impxd, doubl
 	Godunov_flux_y(gamma, p, vx, vy, rho, Fm, Fimpx, Fimpy, Fe);
 }
 
-void GK_2d()
-{
-	Params* params = new Params(100, 40, 1, 0.15, 1.0, 1.0, 1., 1.4, 2.0);
+void GK_2d() {
+	InitialState IS;
 
-	// ������������ ��� ����� ������� (+- fict � �������) ��������
+	vec1d xc(IS.Nx);
+	vec1d x(IS.Nx + 1);
+	vec1d yc(IS.Ny);
+	vec1d y(IS.Ny + 1);
 
-	vec xc(params->Nx);
-	vec x(params->Nx + 1);
-	vec yc(params->Ny);
-	vec y(params->Ny + 1);
-
-	mtrx p(params->Nx, vec(params->Ny)), vx(params->Nx, vec(params->Ny)), vy(params->Nx, vec(params->Ny)), rho(params->Nx, vec(params->Ny));
-	mtrx m(params->Nx, vec(params->Ny)), impx(params->Nx, vec(params->Ny)), impy(params->Nx, vec(params->Ny)), e(params->Nx, vec(params->Ny));
-	mtrx m_next(params->Nx, vec(params->Ny)), impx_next(params->Nx, vec(params->Ny)), impy_next(params->Nx, vec(params->Ny)), e_next(params->Nx, vec(params->Ny));
+	vec2d P(IS.Nx, vec1d(IS.Ny)), ux(IS.Nx, vec1d(IS.Ny)), uy(IS.Nx, vec1d(IS.Ny)), rho(IS.Nx, vec1d(IS.Ny));
+	vec2d mass(IS.Nx, vec1d(IS.Ny)), Imp_x(IS.Nx, vec1d(IS.Ny)), Imp_y(IS.Nx, vec1d(IS.Ny)), rhoe(IS.Nx, vec1d(IS.Ny));
+	vec2d new_mass(IS.Nx, vec1d(IS.Ny)), new_Imp_x(IS.Nx, vec1d(IS.Ny)), new_Imp_y(IS.Nx, vec1d(IS.Ny)), new_rhoe(IS.Nx, vec1d(IS.Ny));
 
 
 	double mb, impxb, impyb, eb, pb, vxb, vyb, rhob;
@@ -590,164 +582,158 @@ void GK_2d()
 	double ml, impxl, impyl, el, mr, impxr, impyr, er;
 	double dm, dimp, de;
 
-	int step = 0, max_step = 1001;// 201;
-	double time = 0.0;
-	double dt;
+	int iter = 0, max_Nt = 101;
+	double t_start = 0.0;
+	double tau;
+	std::string filename = "Godunov_2D";
 
-	int out = 100;
+	int iterwrite = 100;
 	int minmod_type = 1, bound_left = 1, bound_right = 1, bound_down = 0, bound_up = 0;
 
-	grid(params, x, y, xc, yc);
-	init_krujok(params->Nx, params->Ny, params->gamma, xc, yc, p, vx, vy, rho, m, impx, impy, e);
+	grid(IS, x, y, xc, yc);
+	init_krujok(IS.Nx, IS.Ny, IS.gamma, xc, yc, P, ux, uy, rho, mass, Imp_x, Imp_y, rhoe);
 
-	data_to_file(params->Nx, params->Ny, params->fict, params->gamma, 0.0, x, y, p, vx, vy, rho);
+	writeCSV(filename, iter, xc, yc, ux, uy, P, rho, t_start, IS.Nx, IS.Ny, IS.fict);
 
-	while (time < params->T && step < max_step)
+	while (t_start < IS.t_end && iter < max_Nt)
 	{
 
-		dt = get_dt(params, p, rho, vx, vy, x, y);
-		time += dt;
+		tau = get_dt(IS, P, rho, ux, uy, x, y);
 
 		//boundary_cond_x(double p, double vxb, double vyb, double rhob, double& p, double& vx, double& vy, double& rho, int mode);
 
 		/*   START CALC   */
-		for (int i = 0; i < params->Nx; i++)
-		{
-			for (int j = 0; j < params->Ny; j++)
-			{
-				//		������ ����� �
-				// 
-				//		����� ����� ����� ����� ������	
-				// 
+		for (int i = 0; i < IS.Nx; i++) {
+			for (int j = 0; j < IS.Ny; j++) {
 
 				if (i == 0)
 				{
-					boundary_cond_x(p[0][j], vx[0][j], vy[0][j], rho[0][j], pb, vxb, vyb, rhob, bound_left);
-					convert_to_conservative(params->gamma, pb, vxb, vyb, rhob, mb, impxb, impyb, eb);
+					boundary_cond_x(P[0][j], ux[0][j], uy[0][j], rho[0][j], pb, vxb, vyb, rhob, bound_left);
+					convert_to_conservative(IS.gamma, pb, vxb, vyb, rhob, mb, impxb, impyb, eb);
 					ml = mb;
 					impxl = impxb;
 					impyl = impyb;
 					el = eb;
 
-					mr = m[0][j] - 0.5 * minmod(m[0][j] - mb, m[1][j] - m[0][j], minmod_type);
-					impxr = impx[0][j] - 0.5 * minmod(impx[0][j] - impxb, impx[1][j] - impx[0][j], minmod_type);
-					impyr = impy[0][j] - 0.5 * minmod(impy[0][j] - impyb, impy[1][j] - impy[0][j], minmod_type);
-					er = e[0][j] - 0.5 * minmod(e[0][j] - eb, e[1][j] - e[0][j], minmod_type);
+					mr = mass[0][j] - 0.5 * minmod(mass[0][j] - mb, mass[1][j] - mass[0][j], minmod_type);
+					impxr = Imp_x[0][j] - 0.5 * minmod(Imp_x[0][j] - impxb, Imp_x[1][j] - Imp_x[0][j], minmod_type);
+					impyr = Imp_y[0][j] - 0.5 * minmod(Imp_y[0][j] - impyb, Imp_y[1][j] - Imp_y[0][j], minmod_type);
+					er = rhoe[0][j] - 0.5 * minmod(rhoe[0][j] - eb, rhoe[1][j] - rhoe[0][j], minmod_type);
 				}
 
 				else if (i == 1)
 				{
-					boundary_cond_x(p[0][j], vx[0][j], vy[0][j], rho[0][j], pb, vxb, vyb, rhob, bound_left);
-					convert_to_conservative(params->gamma, pb, vxb, vyb, rhob, mb, impxb, impyb, eb);
+					boundary_cond_x(P[0][j], ux[0][j], uy[0][j], rho[0][j], pb, vxb, vyb, rhob, bound_left);
+					convert_to_conservative(IS.gamma, pb, vxb, vyb, rhob, mb, impxb, impyb, eb);
 
-					ml = m[0][j] + 0.5 * minmod(m[0][j] - mb, m[1][j] - m[0][j], minmod_type);
-					impxl = impx[0][j] + 0.5 * minmod(impx[0][j] - impxb, impx[1][j] - impx[0][j], minmod_type);
-					impyl = impy[0][j] + 0.5 * minmod(impy[0][j] - impyb, impy[1][j] - impy[0][j], minmod_type);
-					el = e[0][j] + 0.5 * minmod(e[0][j] - eb, e[1][j] - e[0][j], minmod_type);
+					ml = mass[0][j] + 0.5 * minmod(mass[0][j] - mb, mass[1][j] - mass[0][j], minmod_type);
+					impxl = Imp_x[0][j] + 0.5 * minmod(Imp_x[0][j] - impxb, Imp_x[1][j] - Imp_x[0][j], minmod_type);
+					impyl = Imp_y[0][j] + 0.5 * minmod(Imp_y[0][j] - impyb, Imp_y[1][j] - Imp_y[0][j], minmod_type);
+					el = rhoe[0][j] + 0.5 * minmod(rhoe[0][j] - eb, rhoe[1][j] - rhoe[0][j], minmod_type);
 
-					mr = m[1][j] - 0.5 * minmod(m[i][j] - m[i - 1][j], m[i + 1][j] - m[i][j], minmod_type);
-					impxr = impx[1][j] - 0.5 * minmod(impx[i][j] - impx[i - 1][j], impx[i + 1][j] - impx[i][j], minmod_type);
-					impyr = impy[1][j] - 0.5 * minmod(impy[i][j] - impy[i - 1][j], impy[i + 1][j] - impy[i][j], minmod_type);
-					er = e[1][j] - 0.5 * minmod(e[i][j] - e[i - 1][j], e[i + 1][j] - e[i][j], minmod_type);
+					mr = mass[1][j] - 0.5 * minmod(mass[i][j] - mass[i - 1][j], mass[i + 1][j] - mass[i][j], minmod_type);
+					impxr = Imp_x[1][j] - 0.5 * minmod(Imp_x[i][j] - Imp_x[i - 1][j], Imp_x[i + 1][j] - Imp_x[i][j], minmod_type);
+					impyr = Imp_y[1][j] - 0.5 * minmod(Imp_y[i][j] - Imp_y[i - 1][j], Imp_y[i + 1][j] - Imp_y[i][j], minmod_type);
+					er = rhoe[1][j] - 0.5 * minmod(rhoe[i][j] - rhoe[i - 1][j], rhoe[i + 1][j] - rhoe[i][j], minmod_type);
 				}
 
-				else if (i == params->Nx - 1)
+				else if (i == IS.Nx - 1)
 				{
-					boundary_cond_x(p[params->Nx - 1][j], vx[params->Nx - 1][j], vy[params->Nx - 1][j], rho[params->Nx - 1][j], pb, vxb, vyb, rhob, bound_right);
-					convert_to_conservative(params->gamma, pb, vxb, vyb, rhob, mb, impxb, impyb, eb);
+					boundary_cond_x(P[IS.Nx - 1][j], ux[IS.Nx - 1][j], uy[IS.Nx - 1][j], rho[IS.Nx - 1][j], pb, vxb, vyb, rhob, bound_right);
+					convert_to_conservative(IS.gamma, pb, vxb, vyb, rhob, mb, impxb, impyb, eb);
 
-					ml = m[i - 1][j] + 0.5 * minmod(m[i - 1][j] - m[i - 2][j], m[i][j] - m[i - 1][j], minmod_type);
-					impxl = impx[i - 1][j] + 0.5 * minmod(impx[i - 1][j] - impx[i - 2][j], impx[i][j] - impx[i - 1][j], minmod_type);
-					impyl = impy[i - 1][j] + 0.5 * minmod(impy[i - 1][j] - impy[i - 2][j], impy[i][j] - impy[i - 1][j], minmod_type);
-					el = e[i - 1][j] + 0.5 * minmod(e[i - 1][j] - e[i - 2][j], e[i][j] - e[i - 1][j], minmod_type);
+					ml = mass[i - 1][j] + 0.5 * minmod(mass[i - 1][j] - mass[i - 2][j], mass[i][j] - mass[i - 1][j], minmod_type);
+					impxl = Imp_x[i - 1][j] + 0.5 * minmod(Imp_x[i - 1][j] - Imp_x[i - 2][j], Imp_x[i][j] - Imp_x[i - 1][j], minmod_type);
+					impyl = Imp_y[i - 1][j] + 0.5 * minmod(Imp_y[i - 1][j] - Imp_y[i - 2][j], Imp_y[i][j] - Imp_y[i - 1][j], minmod_type);
+					el = rhoe[i - 1][j] + 0.5 * minmod(rhoe[i - 1][j] - rhoe[i - 2][j], rhoe[i][j] - rhoe[i - 1][j], minmod_type);
 
-					mr = m[i][j] - 0.5 * minmod(m[i][j] - m[i - 1][j], mb - m[i][j], minmod_type);
-					impxr = impx[i][j] - 0.5 * minmod(impx[i][j] - impx[i - 1][j], impxb - impx[i][j], minmod_type);
-					impyr = impy[i][j] - 0.5 * minmod(impy[i][j] - impy[i - 1][j], impyb - impy[i][j], minmod_type);
-					er = e[i][j] - 0.5 * minmod(e[i][j] - e[i - 1][j], eb - e[i][j], minmod_type);
+					mr = mass[i][j] - 0.5 * minmod(mass[i][j] - mass[i - 1][j], mb - mass[i][j], minmod_type);
+					impxr = Imp_x[i][j] - 0.5 * minmod(Imp_x[i][j] - Imp_x[i - 1][j], impxb - Imp_x[i][j], minmod_type);
+					impyr = Imp_y[i][j] - 0.5 * minmod(Imp_y[i][j] - Imp_y[i - 1][j], impyb - Imp_y[i][j], minmod_type);
+					er = rhoe[i][j] - 0.5 * minmod(rhoe[i][j] - rhoe[i - 1][j], eb - rhoe[i][j], minmod_type);
 				}
 
 				else
 				{
-					ml = m[i - 1][j] + 0.5 * minmod(m[i - 1][j] - m[i - 2][j], m[i][j] - m[i - 1][j], minmod_type);
-					impxl = impx[i - 1][j] + 0.5 * minmod(impx[i - 1][j] - impx[i - 2][j], impx[i][j] - impx[i - 1][j], minmod_type);
-					impyl = impy[i - 1][j] + 0.5 * minmod(impy[i - 1][j] - impy[i - 2][j], impy[i][j] - impy[i - 1][j], minmod_type);
-					el = e[i - 1][j] + 0.5 * minmod(e[i - 1][j] - e[i - 2][j], e[i][j] - e[i - 1][j], minmod_type);
+					ml = mass[i - 1][j] + 0.5 * minmod(mass[i - 1][j] - mass[i - 2][j], mass[i][j] - mass[i - 1][j], minmod_type);
+					impxl = Imp_x[i - 1][j] + 0.5 * minmod(Imp_x[i - 1][j] - Imp_x[i - 2][j], Imp_x[i][j] - Imp_x[i - 1][j], minmod_type);
+					impyl = Imp_y[i - 1][j] + 0.5 * minmod(Imp_y[i - 1][j] - Imp_y[i - 2][j], Imp_y[i][j] - Imp_y[i - 1][j], minmod_type);
+					el = rhoe[i - 1][j] + 0.5 * minmod(rhoe[i - 1][j] - rhoe[i - 2][j], rhoe[i][j] - rhoe[i - 1][j], minmod_type);
 
-					mr = m[i][j] - 0.5 * minmod(m[i][j] - m[i - 1][j], m[i + 1][j] - m[i][j], minmod_type);
-					impxr = impx[i][j] - 0.5 * minmod(impx[i][j] - impx[i - 1][j], impx[i + 1][j] - impx[i][j], minmod_type);
-					impyr = impy[i][j] - 0.5 * minmod(impy[i][j] - impy[i - 1][j], impy[i + 1][j] - impy[i][j], minmod_type);
-					er = e[i][j] - 0.5 * minmod(e[i][j] - e[i - 1][j], e[i + 1][j] - e[i][j], minmod_type);
+					mr = mass[i][j] - 0.5 * minmod(mass[i][j] - mass[i - 1][j], mass[i + 1][j] - mass[i][j], minmod_type);
+					impxr = Imp_x[i][j] - 0.5 * minmod(Imp_x[i][j] - Imp_x[i - 1][j], Imp_x[i + 1][j] - Imp_x[i][j], minmod_type);
+					impyr = Imp_y[i][j] - 0.5 * minmod(Imp_y[i][j] - Imp_y[i - 1][j], Imp_y[i + 1][j] - Imp_y[i][j], minmod_type);
+					er = rhoe[i][j] - 0.5 * minmod(rhoe[i][j] - rhoe[i - 1][j], rhoe[i + 1][j] - rhoe[i][j], minmod_type);
 				}
-				Godunov_method_x(params->gamma, params->Quser, ml, impxl, impyl, el, mr, impxr, impyr, er, FmL, FimpxL, FimpyL, FeL);
+				Godunov_method_x(IS.gamma, IS.Q, ml, impxl, impyl, el, mr, impxr, impyr, er, FmL, FimpxL, FimpyL, FeL);
 
 				//		����� ����� ������ ����� ������
-				if (i == params->Nx - 1)
+				if (i == IS.Nx - 1)
 				{
-					boundary_cond_x(p[params->Nx - 1][j], vx[params->Nx - 1][j], vy[params->Nx - 1][j], rho[params->Nx - 1][j], pb, vxb, vyb, rhob, bound_right);
-					convert_to_conservative(params->gamma, pb, vxb, vyb, rhob, mb, impxb, impyb, eb);
+					boundary_cond_x(P[IS.Nx - 1][j], ux[IS.Nx - 1][j], uy[IS.Nx - 1][j], rho[IS.Nx - 1][j], pb, vxb, vyb, rhob, bound_right);
+					convert_to_conservative(IS.gamma, pb, vxb, vyb, rhob, mb, impxb, impyb, eb);
 
-					ml = m[i][j] + 0.5 * minmod(m[i][j] - m[i - 1][j], mb - m[i][j], minmod_type);
-					impxl = impx[i][j] + 0.5 * minmod(impx[i][j] - impx[i - 1][j], impxb - impx[i][j], minmod_type);
-					impyl = impy[i][j] + 0.5 * minmod(impy[i][j] - impy[i - 1][j], impyb - impy[i][j], minmod_type);
-					el = e[i][j] + 0.5 * minmod(e[i][j] - e[i - 1][j], eb - e[i][j], minmod_type);
+					ml = mass[i][j] + 0.5 * minmod(mass[i][j] - mass[i - 1][j], mb - mass[i][j], minmod_type);
+					impxl = Imp_x[i][j] + 0.5 * minmod(Imp_x[i][j] - Imp_x[i - 1][j], impxb - Imp_x[i][j], minmod_type);
+					impyl = Imp_y[i][j] + 0.5 * minmod(Imp_y[i][j] - Imp_y[i - 1][j], impyb - Imp_y[i][j], minmod_type);
+					el = rhoe[i][j] + 0.5 * minmod(rhoe[i][j] - rhoe[i - 1][j], eb - rhoe[i][j], minmod_type);
 
-					mr = mb; //m[params->Nx - 1][j];
-					impxr = impxb; //impx[params->Nx - 1][j];
-					impyr = impyb; //impy[params->Nx - 1][j];
-					er = eb; //e[params->Nx - 1][j];
+					mr = mb; //m[IS.Nx - 1][j];
+					impxr = impxb; //impx[IS.Nx - 1][j];
+					impyr = impyb; //impy[IS.Nx - 1][j];
+					er = eb; //rhoe[IS.Nx - 1][j];
 
 				}
-				else if (i == params->Nx - 2)
+				else if (i == IS.Nx - 2)
 				{
-					boundary_cond_x(p[params->Nx - 1][j], vx[params->Nx - 1][j], vy[params->Nx - 1][j], rho[params->Nx - 1][j], pb, vxb, vyb, rhob, bound_right);
-					convert_to_conservative(params->gamma, pb, vxb, vyb, rhob, mb, impxb, impyb, eb);
+					boundary_cond_x(P[IS.Nx - 1][j], ux[IS.Nx - 1][j], uy[IS.Nx - 1][j], rho[IS.Nx - 1][j], pb, vxb, vyb, rhob, bound_right);
+					convert_to_conservative(IS.gamma, pb, vxb, vyb, rhob, mb, impxb, impyb, eb);
 
-					ml = m[i][j] + 0.5 * minmod(m[i][j] - m[i - 1][j], m[i + 1][j] - m[i][j], minmod_type);
-					impxl = impx[i][j] + 0.5 * minmod(impx[i][j] - impx[i - 1][j], impx[i + 1][j] - impx[i][j], minmod_type);
-					impyl = impy[i][j] + 0.5 * minmod(impy[i][j] - impy[i - 1][j], impy[i + 1][j] - impy[i][j], minmod_type);
-					el = e[i][j] + 0.5 * minmod(e[i][j] - e[i - 1][j], e[i + 1][j] - e[i][j], minmod_type);
+					ml = mass[i][j] + 0.5 * minmod(mass[i][j] - mass[i - 1][j], mass[i + 1][j] - mass[i][j], minmod_type);
+					impxl = Imp_x[i][j] + 0.5 * minmod(Imp_x[i][j] - Imp_x[i - 1][j], Imp_x[i + 1][j] - Imp_x[i][j], minmod_type);
+					impyl = Imp_y[i][j] + 0.5 * minmod(Imp_y[i][j] - Imp_y[i - 1][j], Imp_y[i + 1][j] - Imp_y[i][j], minmod_type);
+					el = rhoe[i][j] + 0.5 * minmod(rhoe[i][j] - rhoe[i - 1][j], rhoe[i + 1][j] - rhoe[i][j], minmod_type);
 
-					mr = m[i + 1][j] - 0.5 * minmod(m[i + 1][j] - m[i][j], mb - m[i + 1][j], minmod_type);
-					impxr = impx[i + 1][j] - 0.5 * minmod(impx[i + 1][j] - impx[i][j], impxb - impx[i + 1][j], minmod_type);
-					impyr = impy[i + 1][j] - 0.5 * minmod(impy[i + 1][j] - impy[i][j], impyb - impy[i + 1][j], minmod_type);
-					er = e[i + 1][j] - 0.5 * minmod(e[i + 1][j] - e[i][j], eb - e[i + 1][j], minmod_type);
+					mr = mass[i + 1][j] - 0.5 * minmod(mass[i + 1][j] - mass[i][j], mb - mass[i + 1][j], minmod_type);
+					impxr = Imp_x[i + 1][j] - 0.5 * minmod(Imp_x[i + 1][j] - Imp_x[i][j], impxb - Imp_x[i + 1][j], minmod_type);
+					impyr = Imp_y[i + 1][j] - 0.5 * minmod(Imp_y[i + 1][j] - Imp_y[i][j], impyb - Imp_y[i + 1][j], minmod_type);
+					er = rhoe[i + 1][j] - 0.5 * minmod(rhoe[i + 1][j] - rhoe[i][j], eb - rhoe[i + 1][j], minmod_type);
 				}
 				else if (i == 0)
 				{
-					boundary_cond_x(p[0][j], vx[0][j], vy[0][j], rho[0][j], pb, vxb, vyb, rhob, bound_left);
-					convert_to_conservative(params->gamma, pb, vxb, vyb, rhob, mb, impxb, impyb, eb);
+					boundary_cond_x(P[0][j], ux[0][j], uy[0][j], rho[0][j], pb, vxb, vyb, rhob, bound_left);
+					convert_to_conservative(IS.gamma, pb, vxb, vyb, rhob, mb, impxb, impyb, eb);
 
-					ml = m[i][j] + 0.5 * minmod(m[i][j] - mb, m[i + 1][j] - m[i][j], minmod_type);
-					impxl = impx[i][j] + 0.5 * minmod(impx[i][j] - impxb, impx[i + 1][j] - impx[i][j], minmod_type);
-					impyl = impy[i][j] + 0.5 * minmod(impy[i][j] - impyb, impy[i + 1][j] - impy[i][j], minmod_type);
-					el = e[i][j] + 0.5 * minmod(e[i][j] - eb, e[i + 1][j] - e[i][j], minmod_type);
+					ml = mass[i][j] + 0.5 * minmod(mass[i][j] - mb, mass[i + 1][j] - mass[i][j], minmod_type);
+					impxl = Imp_x[i][j] + 0.5 * minmod(Imp_x[i][j] - impxb, Imp_x[i + 1][j] - Imp_x[i][j], minmod_type);
+					impyl = Imp_y[i][j] + 0.5 * minmod(Imp_y[i][j] - impyb, Imp_y[i + 1][j] - Imp_y[i][j], minmod_type);
+					el = rhoe[i][j] + 0.5 * minmod(rhoe[i][j] - eb, rhoe[i + 1][j] - rhoe[i][j], minmod_type);
 
-					mr = m[i + 1][j] - 0.5 * minmod(m[i + 1][j] - m[i][j], m[i + 2][j] - m[i + 1][j], minmod_type);
-					impxr = impx[i + 1][j] - 0.5 * minmod(impx[i + 1][j] - impx[i][j], impx[i + 2][j] - impx[i + 1][j], minmod_type);
-					impyr = impy[i + 1][j] - 0.5 * minmod(impy[i + 1][j] - impy[i][j], impy[i + 2][j] - impy[i + 1][j], minmod_type);
-					er = e[i + 1][j] - 0.5 * minmod(e[i + 1][j] - e[i][j], e[i + 2][j] - e[i + 1][j], minmod_type);
+					mr = mass[i + 1][j] - 0.5 * minmod(mass[i + 1][j] - mass[i][j], mass[i + 2][j] - mass[i + 1][j], minmod_type);
+					impxr = Imp_x[i + 1][j] - 0.5 * minmod(Imp_x[i + 1][j] - Imp_x[i][j], Imp_x[i + 2][j] - Imp_x[i + 1][j], minmod_type);
+					impyr = Imp_y[i + 1][j] - 0.5 * minmod(Imp_y[i + 1][j] - Imp_y[i][j], Imp_y[i + 2][j] - Imp_y[i + 1][j], minmod_type);
+					er = rhoe[i + 1][j] - 0.5 * minmod(rhoe[i + 1][j] - rhoe[i][j], rhoe[i + 2][j] - rhoe[i + 1][j], minmod_type);
 				}
 				else
 				{
-					ml = m[i][j] + 0.5 * minmod(m[i][j] - m[i - 1][j], m[i + 1][j] - m[i][j], minmod_type);
-					impxl = impx[i][j] + 0.5 * minmod(impx[i][j] - impx[i - 1][j], impx[i + 1][j] - impx[i][j], minmod_type);
-					impyl = impy[i][j] + 0.5 * minmod(impy[i][j] - impy[i - 1][j], impy[i + 1][j] - impy[i][j], minmod_type);
-					el = e[i][j] + 0.5 * minmod(e[i][j] - e[i - 1][j], e[i + 1][j] - e[i][j], minmod_type);
+					ml = mass[i][j] + 0.5 * minmod(mass[i][j] - mass[i - 1][j], mass[i + 1][j] - mass[i][j], minmod_type);
+					impxl = Imp_x[i][j] + 0.5 * minmod(Imp_x[i][j] - Imp_x[i - 1][j], Imp_x[i + 1][j] - Imp_x[i][j], minmod_type);
+					impyl = Imp_y[i][j] + 0.5 * minmod(Imp_y[i][j] - Imp_y[i - 1][j], Imp_y[i + 1][j] - Imp_y[i][j], minmod_type);
+					el = rhoe[i][j] + 0.5 * minmod(rhoe[i][j] - rhoe[i - 1][j], rhoe[i + 1][j] - rhoe[i][j], minmod_type);
 
-					mr = m[i + 1][j] - 0.5 * minmod(m[i + 1][j] - m[i][j], m[i + 2][j] - m[i + 1][j], minmod_type);
-					impxr = impx[i + 1][j] - 0.5 * minmod(impx[i + 1][j] - impx[i][j], impx[i + 2][j] - impx[i + 1][j], minmod_type);
-					impyr = impy[i + 1][j] - 0.5 * minmod(impy[i + 1][j] - impy[i][j], impy[i + 2][j] - impy[i + 1][j], minmod_type);
-					er = e[i + 1][j] - 0.5 * minmod(e[i + 1][j] - e[i][j], e[i + 2][j] - e[i + 1][j], minmod_type);
+					mr = mass[i + 1][j] - 0.5 * minmod(mass[i + 1][j] - mass[i][j], mass[i + 2][j] - mass[i + 1][j], minmod_type);
+					impxr = Imp_x[i + 1][j] - 0.5 * minmod(Imp_x[i + 1][j] - Imp_x[i][j], Imp_x[i + 2][j] - Imp_x[i + 1][j], minmod_type);
+					impyr = Imp_y[i + 1][j] - 0.5 * minmod(Imp_y[i + 1][j] - Imp_y[i][j], Imp_y[i + 2][j] - Imp_y[i + 1][j], minmod_type);
+					er = rhoe[i + 1][j] - 0.5 * minmod(rhoe[i + 1][j] - rhoe[i][j], rhoe[i + 2][j] - rhoe[i + 1][j], minmod_type);
 				}
-				Godunov_method_x(params->gamma, params->Quser, ml, impxl, impyl, el, mr, impxr, impyr, er, FmR, FimpxR, FimpyR, FeR);
+				Godunov_method_x(IS.gamma, IS.Q, ml, impxl, impyl, el, mr, impxr, impyr, er, FmR, FimpxR, FimpyR, FeR);
 
 				//std::cout << FmL << " " << FmR << std::endl;
 
-				m_next[i][j] = m[i][j] - dt * (FmR - FmL) / params->dx;
-				impx_next[i][j] = impx[i][j] - dt * (FimpxR - FimpxL) / params->dx;
-				impy_next[i][j] = impy[i][j] - dt * (FimpyR - FimpyL) / params->dx;
-				e_next[i][j] = e[i][j] - dt * (FeR - FeL) / params->dx;
+				new_mass[i][j] = mass[i][j] - tau * (FmR - FmL) / IS.hx;
+				new_Imp_x[i][j] = Imp_x[i][j] - tau * (FimpxR - FimpxL) / IS.hx;
+				new_Imp_y[i][j] = Imp_y[i][j] - tau * (FimpyR - FimpyL) / IS.hx;
+				new_rhoe[i][j] = rhoe[i][j] - tau * (FeR - FeL) / IS.hx;
 
 				//		������ ����� y
 				// 
@@ -755,155 +741,165 @@ void GK_2d()
 				//
 				if (j == 0)
 				{
-					boundary_cond_x(p[i][0], vx[i][0], vy[i][0], rho[i][0], pb, vxb, vyb, rhob, bound_down);
-					convert_to_conservative(params->gamma, pb, vxb, vyb, rhob, mb, impxb, impyb, eb);
+					boundary_cond_x(P[i][0], ux[i][0], uy[i][0], rho[i][0], pb, vxb, vyb, rhob, bound_down);
+					convert_to_conservative(IS.gamma, pb, vxb, vyb, rhob, mb, impxb, impyb, eb);
 					ml = mb;
 					impxl = impxb;
 					impyl = impyb;
 					el = eb;
 
-					mr = m[i][0] - 0.5 * minmod(m[i][0] - mb, m[i][1] - m[i][0], minmod_type);
-					impxr = impx[i][0] - 0.5 * minmod(impx[i][0] - impxb, impx[i][1] - impx[i][0], minmod_type);
-					impyr = impy[i][0] - 0.5 * minmod(impy[i][0] - impyb, impy[i][1] - impy[i][0], minmod_type);
-					er = e[i][0] - 0.5 * minmod(e[i][0] - eb, e[i][1] - e[i][0], minmod_type);
+					mr = mass[i][0] - 0.5 * minmod(mass[i][0] - mb, mass[i][1] - mass[i][0], minmod_type);
+					impxr = Imp_x[i][0] - 0.5 * minmod(Imp_x[i][0] - impxb, Imp_x[i][1] - Imp_x[i][0], minmod_type);
+					impyr = Imp_y[i][0] - 0.5 * minmod(Imp_y[i][0] - impyb, Imp_y[i][1] - Imp_y[i][0], minmod_type);
+					er = rhoe[i][0] - 0.5 * minmod(rhoe[i][0] - eb, rhoe[i][1] - rhoe[i][0], minmod_type);
 				}
 
 				else if (j == 1)
 				{
-					boundary_cond_y(p[i][0], vx[i][0], vy[i][0], rho[i][0], pb, vxb, vyb, rhob, bound_down);
-					convert_to_conservative(params->gamma, pb, vxb, vyb, rhob, mb, impxb, impyb, eb);
+					boundary_cond_y(P[i][0], ux[i][0], uy[i][0], rho[i][0], pb, vxb, vyb, rhob, bound_down);
+					convert_to_conservative(IS.gamma, pb, vxb, vyb, rhob, mb, impxb, impyb, eb);
 
-					mr = m[i][0] + 0.5 * minmod(m[i][0] - mb, m[i][1] - m[i][0], minmod_type);
-					impxr = impx[i][0] + 0.5 * minmod(impx[i][0] - impxb, impx[i][1] - impx[i][0], minmod_type);
-					impyr = impy[i][0] + 0.5 * minmod(impy[i][0] - impyb, impy[i][1] - impy[i][0], minmod_type);
-					er = e[i][0] + 0.5 * minmod(e[i][0] - eb, e[i][1] - e[i][0], minmod_type);
+					mr = mass[i][0] + 0.5 * minmod(mass[i][0] - mb, mass[i][1] - mass[i][0], minmod_type);
+					impxr = Imp_x[i][0] + 0.5 * minmod(Imp_x[i][0] - impxb, Imp_x[i][1] - Imp_x[i][0], minmod_type);
+					impyr = Imp_y[i][0] + 0.5 * minmod(Imp_y[i][0] - impyb, Imp_y[i][1] - Imp_y[i][0], minmod_type);
+					er = rhoe[i][0] + 0.5 * minmod(rhoe[i][0] - eb, rhoe[i][1] - rhoe[i][0], minmod_type);
 
-					mr = m[i][1] - 0.5 * minmod(m[i][j] - m[i][j - 1], m[i][j + 1] - m[i][j], minmod_type);
-					impxr = impx[i][1] - 0.5 * minmod(impx[i][j] - impx[i][j - 1], impx[i][j + 1] - impx[i][j], minmod_type);
-					impyr = impy[i][1] - 0.5 * minmod(impy[i][j] - impy[i][j - 1], impy[i][j + 1] - impy[i][j], minmod_type);
-					er = e[i][1] - 0.5 * minmod(e[i][j] - e[i][j - 1], e[i][j + 1] - e[i][j], minmod_type);
+					mr = mass[i][1] - 0.5 * minmod(mass[i][j] - mass[i][j - 1], mass[i][j + 1] - mass[i][j], minmod_type);
+					impxr = Imp_x[i][1] - 0.5 * minmod(Imp_x[i][j] - Imp_x[i][j - 1], Imp_x[i][j + 1] - Imp_x[i][j], minmod_type);
+					impyr = Imp_y[i][1] - 0.5 * minmod(Imp_y[i][j] - Imp_y[i][j - 1], Imp_y[i][j + 1] - Imp_y[i][j], minmod_type);
+					er = rhoe[i][1] - 0.5 * minmod(rhoe[i][j] - rhoe[i][j - 1], rhoe[i][j + 1] - rhoe[i][j], minmod_type);
 				}
 
-				else if (j == params->Ny - 1)
+				else if (j == IS.Ny - 1)
 				{
-					boundary_cond_y(p[i][params->Ny - 1], vx[i][params->Ny - 1], vy[i][params->Ny - 1], rho[i][params->Ny - 1], pb, vxb, vyb, rhob, bound_up);
-					convert_to_conservative(params->gamma, pb, vxb, vyb, rhob, mb, impxb, impyb, eb);
+					boundary_cond_y(P[i][IS.Ny - 1], ux[i][IS.Ny - 1], uy[i][IS.Ny - 1], rho[i][IS.Ny - 1], pb, vxb, vyb, rhob, bound_up);
+					convert_to_conservative(IS.gamma, pb, vxb, vyb, rhob, mb, impxb, impyb, eb);
 
-					ml = m[i][j - 1] + 0.5 * minmod(m[i][j - 1] - m[i][j - 2], m[i][j] - m[i][j - 1], minmod_type);
-					impxl = impx[i][j - 1] + 0.5 * minmod(impx[i][j - 1] - impx[i][j - 2], impx[i][j] - impx[i][j - 1], minmod_type);
-					impyl = impy[i][j - 1] + 0.5 * minmod(impy[i][j - 1] - impy[i][j - 2], impy[i][j] - impy[i][j - 1], minmod_type);
-					el = e[i][j - 1] + 0.5 * minmod(e[i][j - 1] - e[i][j - 2], e[i][j] - e[i][j - 1], minmod_type);
+					ml = mass[i][j - 1] + 0.5 * minmod(mass[i][j - 1] - mass[i][j - 2], mass[i][j] - mass[i][j - 1], minmod_type);
+					impxl = Imp_x[i][j - 1] + 0.5 * minmod(Imp_x[i][j - 1] - Imp_x[i][j - 2], Imp_x[i][j] - Imp_x[i][j - 1], minmod_type);
+					impyl = Imp_y[i][j - 1] + 0.5 * minmod(Imp_y[i][j - 1] - Imp_y[i][j - 2], Imp_y[i][j] - Imp_y[i][j - 1], minmod_type);
+					el = rhoe[i][j - 1] + 0.5 * minmod(rhoe[i][j - 1] - rhoe[i][j - 2], rhoe[i][j] - rhoe[i][j - 1], minmod_type);
 
-					mr = m[i][j] - 0.5 * minmod(m[i][j] - m[i][j - 1], mb - m[i][j], minmod_type);
-					impxr = impx[i][j] - 0.5 * minmod(impx[i][j] - impx[i][j - 1], impxb - impx[i][j], minmod_type);
-					impyr = impy[i][j] - 0.5 * minmod(impy[i][j] - impy[i][j - 1], impyb - impy[i][j], minmod_type);
-					er = e[i][j] - 0.5 * minmod(e[i][j] - e[i][j - 1], eb - e[i][j], minmod_type);
+					mr = mass[i][j] - 0.5 * minmod(mass[i][j] - mass[i][j - 1], mb - mass[i][j], minmod_type);
+					impxr = Imp_x[i][j] - 0.5 * minmod(Imp_x[i][j] - Imp_x[i][j - 1], impxb - Imp_x[i][j], minmod_type);
+					impyr = Imp_y[i][j] - 0.5 * minmod(Imp_y[i][j] - Imp_y[i][j - 1], impyb - Imp_y[i][j], minmod_type);
+					er = rhoe[i][j] - 0.5 * minmod(rhoe[i][j] - rhoe[i][j - 1], eb - rhoe[i][j], minmod_type);
 				}
 
 				else
 				{
-					ml = m[i][j - 1] + 0.5 * minmod(m[i][j - 1] - m[i][j - 2], m[i][j] - m[i][j - 1], minmod_type);
-					impxl = impx[i][j - 1] + 0.5 * minmod(impx[i][j - 1] - impx[i][j - 2], impx[i][j] - impx[i][j - 1], minmod_type);
-					impyl = impy[i][j - 1] + 0.5 * minmod(impy[i][j - 1] - impy[i][j - 2], impy[i][j] - impy[i][j - 1], minmod_type);
-					el = e[i][j - 1] + 0.5 * minmod(e[i][j - 1] - e[i][j - 2], e[i][j] - e[i][j - 1], minmod_type);
+					ml = mass[i][j - 1] + 0.5 * minmod(mass[i][j - 1] - mass[i][j - 2], mass[i][j] - mass[i][j - 1], minmod_type);
+					impxl = Imp_x[i][j - 1] + 0.5 * minmod(Imp_x[i][j - 1] - Imp_x[i][j - 2], Imp_x[i][j] - Imp_x[i][j - 1], minmod_type);
+					impyl = Imp_y[i][j - 1] + 0.5 * minmod(Imp_y[i][j - 1] - Imp_y[i][j - 2], Imp_y[i][j] - Imp_y[i][j - 1], minmod_type);
+					el = rhoe[i][j - 1] + 0.5 * minmod(rhoe[i][j - 1] - rhoe[i][j - 2], rhoe[i][j] - rhoe[i][j - 1], minmod_type);
 
-					mr = m[i][j] - 0.5 * minmod(m[i][j] - m[i][j - 1], m[i][j + 1] - m[i][j], minmod_type);
-					impxr = impx[i][j] - 0.5 * minmod(impx[i][j] - impx[i][j - 1], impx[i][j + 1] - impx[i][j], minmod_type);
-					impyr = impy[i][j] - 0.5 * minmod(impy[i][j] - impy[i][j - 1], impy[i][j + 1] - impy[i][j], minmod_type);
-					er = e[i][j] - 0.5 * minmod(e[i][j] - e[i][j - 1], e[i][j + 1] - e[i][j], minmod_type);
+					mr = mass[i][j] - 0.5 * minmod(mass[i][j] - mass[i][j - 1], mass[i][j + 1] - mass[i][j], minmod_type);
+					impxr = Imp_x[i][j] - 0.5 * minmod(Imp_x[i][j] - Imp_x[i][j - 1], Imp_x[i][j + 1] - Imp_x[i][j], minmod_type);
+					impyr = Imp_y[i][j] - 0.5 * minmod(Imp_y[i][j] - Imp_y[i][j - 1], Imp_y[i][j + 1] - Imp_y[i][j], minmod_type);
+					er = rhoe[i][j] - 0.5 * minmod(rhoe[i][j] - rhoe[i][j - 1], rhoe[i][j + 1] - rhoe[i][j], minmod_type);
 				}
-				Godunov_method_y(params->gamma, params->Quser, ml, impxl, impyl, el, mr, impxr, impyr, er, FmL, FimpxL, FimpyL, FeL);
+				Godunov_method_y(IS.gamma, IS.Q, ml, impxl, impyl, el, mr, impxr, impyr, er, FmL, FimpxL, FimpyL, FeL);
 
 				//		����� ����� ������� ����� ������
-				if (j == params->Ny - 1)
+				if (j == IS.Ny - 1)
 				{
-					boundary_cond_y(p[i][params->Ny - 1], vx[i][params->Ny - 1], vy[i][params->Ny - 1], rho[i][params->Ny - 1], pb, vxb, vyb, rhob, bound_up);
-					convert_to_conservative(params->gamma, pb, vxb, vyb, rhob, mb, impxb, impyb, eb);
+					boundary_cond_y(P[i][IS.Ny - 1], ux[i][IS.Ny - 1], uy[i][IS.Ny - 1], rho[i][IS.Ny - 1], pb, vxb, vyb, rhob, bound_up);
+					convert_to_conservative(IS.gamma, pb, vxb, vyb, rhob, mb, impxb, impyb, eb);
 
-					ml = m[i][j] + 0.5 * minmod(m[i][j] - m[i][j - 1], mb - m[i][j], minmod_type);
-					impxl = impx[i][j] + 0.5 * minmod(impx[i][j] - impx[i][j - 1], impxb - impx[i][j], minmod_type);
-					impyl = impy[i][j] + 0.5 * minmod(impy[i][j] - impy[i][j - 1], impyb - impy[i][j], minmod_type);
-					el = e[i][j] + 0.5 * minmod(e[i][j] - e[i][j - 1], eb - e[i][j], minmod_type);
+					ml = mass[i][j] + 0.5 * minmod(mass[i][j] - mass[i][j - 1], mb - mass[i][j], minmod_type);
+					impxl = Imp_x[i][j] + 0.5 * minmod(Imp_x[i][j] - Imp_x[i][j - 1], impxb - Imp_x[i][j], minmod_type);
+					impyl = Imp_y[i][j] + 0.5 * minmod(Imp_y[i][j] - Imp_y[i][j - 1], impyb - Imp_y[i][j], minmod_type);
+					el = rhoe[i][j] + 0.5 * minmod(rhoe[i][j] - rhoe[i][j - 1], eb - rhoe[i][j], minmod_type);
 
 					mr = mb;
 					impxr = impxb;
 					impyr = impyb;
 					er = eb;
 				}
-				else if (j == params->Ny - 2)
+				else if (j == IS.Ny - 2)
 				{
-					boundary_cond_y(p[i][params->Ny - 1], vx[i][params->Ny - 1], vy[i][params->Ny - 1], rho[i][params->Ny - 1], pb, vxb, vyb, rhob, bound_up);
-					convert_to_conservative(params->gamma, pb, vxb, vyb, rhob, mb, impxb, impyb, eb);
+					boundary_cond_y(P[i][IS.Ny - 1], ux[i][IS.Ny - 1], uy[i][IS.Ny - 1], rho[i][IS.Ny - 1], pb, vxb, vyb, rhob, bound_up);
+					convert_to_conservative(IS.gamma, pb, vxb, vyb, rhob, mb, impxb, impyb, eb);
 
-					ml = m[i][j] + 0.5 * minmod(m[i][j] - m[i][j - 1], m[i][j + 1] - m[i][j], minmod_type);
-					impxl = impx[i][j] + 0.5 * minmod(impx[i][j] - impx[i][j - 1], impx[i][j + 1] - impx[i][j], minmod_type);
-					impyl = impy[i][j] + 0.5 * minmod(impy[i][j] - impy[i][j - 1], impy[i][j + 1] - impy[i][j], minmod_type);
-					el = e[i][j] + 0.5 * minmod(e[i][j] - e[i][j - 1], e[i][j + 1] - e[i][j], minmod_type);
+					ml = mass[i][j] + 0.5 * minmod(mass[i][j] - mass[i][j - 1], mass[i][j + 1] - mass[i][j], minmod_type);
+					impxl = Imp_x[i][j] + 0.5 * minmod(Imp_x[i][j] - Imp_x[i][j - 1], Imp_x[i][j + 1] - Imp_x[i][j], minmod_type);
+					impyl = Imp_y[i][j] + 0.5 * minmod(Imp_y[i][j] - Imp_y[i][j - 1], Imp_y[i][j + 1] - Imp_y[i][j], minmod_type);
+					el = rhoe[i][j] + 0.5 * minmod(rhoe[i][j] - rhoe[i][j - 1], rhoe[i][j + 1] - rhoe[i][j], minmod_type);
 
-					mr = m[i][j + 1] - 0.5 * minmod(m[i][j + 1] - m[i][j], mb - m[i][j + 1], minmod_type);
-					impxr = impx[i][j + 1] - 0.5 * minmod(impx[i][j + 1] - impx[i][j], impxb - impx[i][j + 1], minmod_type);
-					impyr = impy[i][j + 1] - 0.5 * minmod(impy[i][j + 1] - impy[i][j], impyb - impy[i][j + 1], minmod_type);
-					er = e[i][j + 1] - 0.5 * minmod(e[i][j + 1] - e[i][j], eb - e[i][j + 1], minmod_type);
+					mr = mass[i][j + 1] - 0.5 * minmod(mass[i][j + 1] - mass[i][j], mb - mass[i][j + 1], minmod_type);
+					impxr = Imp_x[i][j + 1] - 0.5 * minmod(Imp_x[i][j + 1] - Imp_x[i][j], impxb - Imp_x[i][j + 1], minmod_type);
+					impyr = Imp_y[i][j + 1] - 0.5 * minmod(Imp_y[i][j + 1] - Imp_y[i][j], impyb - Imp_y[i][j + 1], minmod_type);
+					er = rhoe[i][j + 1] - 0.5 * minmod(rhoe[i][j + 1] - rhoe[i][j], eb - rhoe[i][j + 1], minmod_type);
 				}
 				else if (j == 0)
 				{
-					boundary_cond_y(p[i][0], vx[i][0], vy[i][0], rho[i][0], pb, vxb, vyb, rhob, bound_down);
-					convert_to_conservative(params->gamma, pb, vxb, vyb, rhob, mb, impxb, impyb, eb);
+					boundary_cond_y(P[i][0], ux[i][0], uy[i][0], rho[i][0], pb, vxb, vyb, rhob, bound_down);
+					convert_to_conservative(IS.gamma, pb, vxb, vyb, rhob, mb, impxb, impyb, eb);
 
-					ml = m[i][j] + 0.5 * minmod(m[i][j] - mb, m[i][j + 1] - m[i][j], minmod_type);
-					impxl = impx[i][j] + 0.5 * minmod(impx[i][j] - impxb, impx[i][j + 1] - impx[i][j], minmod_type);
-					impyl = impy[i][j] + 0.5 * minmod(impy[i][j] - impyb, impy[i][j + 1] - impy[i][j], minmod_type);
-					el = e[i][j] + 0.5 * minmod(e[i][j] - eb, e[i][j + 1] - e[i][j], minmod_type);
+					ml = mass[i][j] + 0.5 * minmod(mass[i][j] - mb, mass[i][j + 1] - mass[i][j], minmod_type);
+					impxl = Imp_x[i][j] + 0.5 * minmod(Imp_x[i][j] - impxb, Imp_x[i][j + 1] - Imp_x[i][j], minmod_type);
+					impyl = Imp_y[i][j] + 0.5 * minmod(Imp_y[i][j] - impyb, Imp_y[i][j + 1] - Imp_y[i][j], minmod_type);
+					el = rhoe[i][j] + 0.5 * minmod(rhoe[i][j] - eb, rhoe[i][j + 1] - rhoe[i][j], minmod_type);
 
-					mr = m[i][j + 1] - 0.5 * minmod(m[i][j + 1] - m[i][j], m[i][j + 2] - m[i][j + 1], minmod_type);
-					impxr = impx[i][j + 1] - 0.5 * minmod(impx[i][j + 1] - impx[i][j], impx[i][j + 2] - impx[i][j + 1], minmod_type);
-					impyr = impy[i][j + 1] - 0.5 * minmod(impy[i][j + 1] - impy[i][j], impy[i][j + 2] - impy[i][j + 1], minmod_type);
-					er = e[i][j + 1] - 0.5 * minmod(e[i][j + 1] - e[i][j], e[i][j + 2] - e[i][j + 1], minmod_type);
+					mr = mass[i][j + 1] - 0.5 * minmod(mass[i][j + 1] - mass[i][j], mass[i][j + 2] - mass[i][j + 1], minmod_type);
+					impxr = Imp_x[i][j + 1] - 0.5 * minmod(Imp_x[i][j + 1] - Imp_x[i][j], Imp_x[i][j + 2] - Imp_x[i][j + 1], minmod_type);
+					impyr = Imp_y[i][j + 1] - 0.5 * minmod(Imp_y[i][j + 1] - Imp_y[i][j], Imp_y[i][j + 2] - Imp_y[i][j + 1], minmod_type);
+					er = rhoe[i][j + 1] - 0.5 * minmod(rhoe[i][j + 1] - rhoe[i][j], rhoe[i][j + 2] - rhoe[i][j + 1], minmod_type);
 				}
 				else
 				{
-					ml = m[i][j] + 0.5 * minmod(m[i][j] - m[i][j - 1], m[i][j + 1] - m[i][j], minmod_type);
-					impxl = impx[i][j] + 0.5 * minmod(impx[i][j] - impx[i][j - 1], impx[i][j + 1] - impx[i][j], minmod_type);
-					impyl = impy[i][j] + 0.5 * minmod(impy[i][j] - impy[i][j - 1], impy[i][j + 1] - impy[i][j], minmod_type);
-					el = e[i][j] + 0.5 * minmod(e[i][j] - e[i][j - 1], e[i][j + 1] - e[i][j], minmod_type);
+					ml = mass[i][j] + 0.5 * minmod(mass[i][j] - mass[i][j - 1], mass[i][j + 1] - mass[i][j], minmod_type);
+					impxl = Imp_x[i][j] + 0.5 * minmod(Imp_x[i][j] - Imp_x[i][j - 1], Imp_x[i][j + 1] - Imp_x[i][j], minmod_type);
+					impyl = Imp_y[i][j] + 0.5 * minmod(Imp_y[i][j] - Imp_y[i][j - 1], Imp_y[i][j + 1] - Imp_y[i][j], minmod_type);
+					el = rhoe[i][j] + 0.5 * minmod(rhoe[i][j] - rhoe[i][j - 1], rhoe[i][j + 1] - rhoe[i][j], minmod_type);
 
-					mr = m[i][j + 1] - 0.5 * minmod(m[i][j + 1] - m[i][j], m[i][j + 2] - m[i][j + 1], minmod_type);
-					impxr = impx[i][j + 1] - 0.5 * minmod(impx[i][j + 1] - impx[i][j], impx[i][j + 2] - impx[i][j + 1], minmod_type);
-					impyr = impy[i][j + 1] - 0.5 * minmod(impy[i][j + 1] - impy[i][j], impy[i][j + 2] - impy[i][j + 1], minmod_type);
-					er = e[i][j + 1] - 0.5 * minmod(e[i][j + 1] - e[i][j], e[i][j + 2] - e[i][j + 1], minmod_type);
+					mr = mass[i][j + 1] - 0.5 * minmod(mass[i][j + 1] - mass[i][j], mass[i][j + 2] - mass[i][j + 1], minmod_type);
+					impxr = Imp_x[i][j + 1] - 0.5 * minmod(Imp_x[i][j + 1] - Imp_x[i][j], Imp_x[i][j + 2] - Imp_x[i][j + 1], minmod_type);
+					impyr = Imp_y[i][j + 1] - 0.5 * minmod(Imp_y[i][j + 1] - Imp_y[i][j], Imp_y[i][j + 2] - Imp_y[i][j + 1], minmod_type);
+					er = rhoe[i][j + 1] - 0.5 * minmod(rhoe[i][j + 1] - rhoe[i][j], rhoe[i][j + 2] - rhoe[i][j + 1], minmod_type);
 				}
-				Godunov_method_y(params->gamma, params->Quser, ml, impxl, impyl, el, mr, impxr, impyr, er, FmR, FimpxR, FimpyR, FeR);
+				Godunov_method_y(IS.gamma, IS.Q, ml, impxl, impyl, el, mr, impxr, impyr, er, FmR, FimpxR, FimpyR, FeR);
 				//std::cout << FmL << " " << FmR << std::endl;
 
-				m_next[i][j] = m_next[i][j] - dt * (FmR - FmL) / params->dy;
-				impx_next[i][j] = impx_next[i][j] - dt * (FimpxR - FimpxL) / params->dy;
-				impy_next[i][j] = impy_next[i][j] - dt * (FimpyR - FimpyL) / params->dy;
-				e_next[i][j] = e_next[i][j] - dt * (FeR - FeL) / params->dy;
+				new_mass[i][j] = new_mass[i][j] - tau * (FmR - FmL) / IS.hy;
+				new_Imp_x[i][j] = new_Imp_x[i][j] - tau * (FimpxR - FimpxL) / IS.hy;
+				new_Imp_y[i][j] = new_Imp_y[i][j] - tau * (FimpyR - FimpyL) / IS.hy;
+				new_rhoe[i][j] = new_rhoe[i][j] - tau * (FeR - FeL) / IS.hy;
 
 			}
 		}
 		/*    END CALC    */
 
 		// update parameters
-		for (int i = 0; i < params->Nx; ++i)
+		for (int i = 0; i < IS.Nx; ++i)
 		{
-			for (int j = 0; j < params->Ny; ++j)
+			for (int j = 0; j < IS.Ny; ++j)
 			{
-				m[i][j] = m_next[i][j];
-				impx[i][j] = impx_next[i][j];
-				impy[i][j] = impy_next[i][j];
-				e[i][j] = e_next[i][j];
+				mass[i][j] = new_mass[i][j];
+				Imp_x[i][j] = new_Imp_x[i][j];
+				Imp_y[i][j] = new_Imp_y[i][j];
+				rhoe[i][j] = new_rhoe[i][j];
 
-				convert_from_conservative(params->gamma, p[i][j], vx[i][j], vy[i][j], rho[i][j], m[i][j], impx[i][j], impy[i][j], e[i][j]);
+				convert_from_conservative(IS.gamma, P[i][j], ux[i][j], uy[i][j], rho[i][j], mass[i][j], Imp_x[i][j], Imp_y[i][j], rhoe[i][j]);
 			}
 		}
 		//data_to_file(int Nx, int Ny, double time, vec x, vec y, mtrx p, mtrx vx, mtrx vy, mtrx rho)
-		if (step % out == 0)
-			data_to_file(params->Nx, params->Ny, params->fict, params->gamma, time, x, y, p, vx, vy, rho);
-		step += 1;
-		//std::cout << step << std::endl;
-	}
+		if (iter % iterwrite == 0) {
+			writeCSV(filename, iter, xc, yc, ux, uy, P, rho, t_start, IS.Nx, IS.Ny, IS.fict);
+		}
+		iter += 1;
+		t_start += tau;
 
+	}
+	writeCSV(filename, iter, xc, yc, ux, uy, P, rho, t_start, IS.Nx, IS.Ny, IS.fict);
+
+	if (t_start >= IS.t_end) {
+		std::cout << "Solve stopped by time\n";
+		std::cout << "On iter = " << iter << std::endl;
+	}
+	else {
+		std::cout << "Solve stopped by iterations number";
+	}
 	return;
 }
 

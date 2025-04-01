@@ -48,20 +48,20 @@ void Newton_find_P(std::function<double(double, double, double, double)> fL,
 void find_in_which_part(double* PM, double* UM, double* rhoM, double PL, double PR, double uL, double uR, double rhoL, double rhoR, double gamma, double S) {
     if (S <= *UM) {
         if (*PM <= PL) {
-            // слева волна разрежения 
+            // пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ 
             if (S <= (uL - sound_speed(PL, rhoL, gamma))) {
-                // слева вне распада разрыва
+                // пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ
                 *rhoM = rhoL;
                 *UM = uL;
                 *PM = PL;
             }
             else {
                 if (S > (*UM - sound_speed(PL, rhoL, gamma) * std::pow((*PM / PL), (gamma - 1) / 2. / gamma))) {
-                    // слева от контактного разрыва
+                    // пїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ
                     *rhoM = rhoL * std::pow((*PM / PL), 1. / gamma);
                 }
                 else {
-                    // слева внутри волны разрежения
+                    // пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
                     *UM = 2. / (gamma + 1.) * (sound_speed(PL, rhoL, gamma) + (gamma - 1.) / 2. * uL + S);
                     double C = 2. / (gamma + 1.) * (sound_speed(PL, rhoL, gamma) + (gamma - 1.) / 2. * (uL - S));
                     *rhoM = rhoL * std::pow((C / sound_speed(PL, rhoL, gamma)), 2. / (gamma - 1));
@@ -70,41 +70,41 @@ void find_in_which_part(double* PM, double* UM, double* rhoM, double PL, double 
             }
         }
         else {
-            // слева ударная волна
+            // пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ
             if (S <= uL - sound_speed(PL, rhoL, gamma) * std::sqrt(*PM / PL * (gamma + 1) / 2. / gamma + (gamma - 1) / 2. / gamma)) {
-                // слева вне распада разрыва
+                // пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ
                 *rhoM = rhoL;
                 *UM = uL;
                 *PM = PL;
             }
             else {
-                // слева от контактного разрыва
+                // пїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ
                 *rhoM = rhoL * (*PM / PL + (gamma - 1) / (gamma + 1)) / (*PM / PL * (gamma - 1) / (gamma + 1) + 1.0);
             }
         }
     }
     else {
         if (*PM > PR) {
-            // справа ударная волна
+            // пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ
             double PMR = *PM / PR;
             double SR = uR + sound_speed(PR, rhoR, gamma) * std::sqrt(PMR * (gamma + 1) / 2. / gamma + (gamma - 1) / 2. / gamma);
             if (S >= SR) {
-                // справа вне распада разрыва
+                // пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ
                 *rhoM = rhoR;
                 *UM = uR;
                 *PM = PR;
             }
             else {
-                // справа от контактного разрыва
+                // пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ
                 double G6 = (gamma - 1) / (gamma + 1);
                 *rhoM = rhoR * (PMR + G6) / (PMR * G6 + 1.);
             }
         }
         else {
-            // справа волна разрежения
+            // пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
             double SHR = uR + sound_speed(PR, rhoR, gamma);
             if (S >= SHR) {
-                // справа вне распада разрыва
+                // пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ
                 *rhoM = rhoR;
                 *UM = uR;
                 *PM = PR;
@@ -113,11 +113,11 @@ void find_in_which_part(double* PM, double* UM, double* rhoM, double PL, double 
                 double CMR = sound_speed(PR, rhoR, gamma) * std::pow((*PM / PR), (gamma - 1) / 2. / gamma);
                 double STR = *UM + CMR;
                 if (S <= STR) {
-                    // справа от контактного разрыва
+                    // пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ
                     *rhoM = rhoR * std::pow((*PM / PR), 1. / gamma);
                 }
                 else {
-                    // внутри правой волны разрежения
+                    // пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
                     *UM = 2. / (gamma + 1.) * (-sound_speed(PR, rhoR, gamma) + (gamma - 1.) / 2. * uR + S);
                     double C = 2. / (gamma + 1.) * (sound_speed(PR, rhoR, gamma) - (gamma - 1.) / 2. * (uR - S));
                     *rhoM = rhoR * std::pow((C / sound_speed(PR, rhoR, gamma)), 2. / (gamma - 1));
@@ -313,7 +313,7 @@ void Godunov_Kolgan_solver(int fict_num) {
         for (int j = fict - 1; j < Nx - fict; j++) {
             double PL, uL, rhoL, PR, uR, rhoR, Pans, uans, rhoans;
 
-            // 1 для Годунова, 2 для Годунова-Колгана
+            // 1 пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ, 2 пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ-пїЅпїЅпїЅпїЅпїЅпїЅпїЅ
             BoundaryValuesForRiemanSolver(P, u, rho, j, &PL, &PR, &uL, &uR, &rhoL, &rhoR, fict_num);
             double S = 0.5 * h / tau;
             Rieman_solver(PL, uL, rhoL, PR, uR, rhoR, &Pans, &uans, &rhoans, gamma, S);
