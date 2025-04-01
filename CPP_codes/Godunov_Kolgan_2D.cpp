@@ -34,7 +34,7 @@ struct InitialState {
 	double gamma = 1.4;
 	double Q = 2;
 
-    double u_left, u_right, P_left, P_right, rho_left, rho_right;
+	double u_left, u_right, P_left, P_right, rho_left, rho_right;
 };
 
 
@@ -122,13 +122,13 @@ void Boundary_y(double p, double vx, double vy, double rho, double& pb, double& 
 
 void grid(InitialState IS, vec1d& x, vec1d& y, vec1d& xc, vec1d& yc) {
 	for (int i = 0; i < IS.Nx + 1; ++i) {
-		x[i] = 0.0 + (i - IS.fict) * IS.hx;
+		x[i] = IS.x_start + (i - IS.fict) * IS.hx;
 	}
 	for (int i = 0; i < IS.Nx; ++i) {
 		xc[i] = 0.5 * (x[i] + x[i + 1]);
 	}
 	for (int i = 0; i < IS.Ny + 1; ++i) {
-		y[i] = 0.0 + (i - IS.fict) * IS.hy;
+		y[i] = IS.y_start + (i - IS.fict) * IS.hy;
 	}
 
 	for (int i = 0; i < IS.Ny; ++i) {
@@ -137,26 +137,28 @@ void grid(InitialState IS, vec1d& x, vec1d& y, vec1d& xc, vec1d& yc) {
 }
 
 
-void init_krujok(int Nx, int Ny, double gamma, vec1d xc, vec1d yc, vec2d& p, vec2d& vx, vec2d& vy, vec2d& rho, vec2d& m, vec2d& impx, vec2d& impy, vec2d& rhoe) {
+void initial_state(int Nx, int Ny, double gamma, vec1d xc, vec1d yc, vec2d& p, vec2d& vx, vec2d& vy, vec2d& rho, vec2d& m, vec2d& impx, vec2d& impy, vec2d& rhoe) {
 	double R = 0.1;
 	double p1, vx1, vy1, rho1, p2, vx2, vy2, rho2, d;
 
 	// toro test 1
 
-	p1 = 1.0; // ����������� ��������
+	p1 = 1.0;
 	vx1 = 0.75;
 	vy1 = 0.;
-	rho1 = 1.0; // ��������� �������
+	rho1 = 1.0;
 
-	p2 = 1.0; // ����������� ��������
+	p2 = 1.0;
 	vx2 = 0.;
 	vy2 = 0.;
-	rho2 = 0.125; // ��������� �������
+	rho2 = 0.125;
 
-	for (int i = 0; i < Nx; i++) {
-		for (int j = 0; j < Ny; j++) {
-			d = (xc[i] - 0.5) * (xc[i] - 0.5) + (yc[j] - 0.5) * (yc[j] - 0.5);
-			if (d < R * R) {
+	for (int i = 0; i < Ny; i++) {
+		for (int j = 0; j < Nx; j++) {
+
+			//d = (xc[i] - 0.5) * (xc[i] - 0.5) + (yc[j] - 0.5) * (yc[j] - 0.5);
+			//if (d < R * R) {
+			if (j < Nx / 2) {
 
 				p[i][j] = p1;
 				vx[i][j] = vx1;
@@ -174,25 +176,11 @@ void init_krujok(int Nx, int Ny, double gamma, vec1d xc, vec1d yc, vec2d& p, vec
 	}
 }
 
-double get_dt(InitialState IS, vec2d p, vec2d rho, vec2d vx, vec2d vy, vec1d x, vec1d y)
-{
-	double dt = 10.0e6;
-	double c, dt_step;
-	for (int i = IS.fict; i < IS.Nx - IS.fict; ++i) {
-		for (int j = IS.fict; j < IS.Ny - IS.fict; ++j) {
-			c = sqrt(IS.gamma * p[i][j] / rho[i][j]);
-			dt_step = std::min(abs(IS.CFL * (x[i + 1] - x[i]) / (abs(vx[i][j]) + c)), abs(IS.CFL * (y[j + 1] - y[j]) / (abs(vy[i][j]) + c)));
-			if (dt_step < dt) {
-				dt = dt_step;
-			}
-		}
-	}
-	return dt;
-}
+
 
 // minmod functions: 0 - Kolgan,1972; 1 - Kolgan,1975; 2 (or another...) - Osher,1984
-double minmod(double a, double b, int func) // func - type of minmod we use
-{
+// func - type of minmod
+double minmod(double a, double b, int func) {
 	if (func == 0)
 		return (abs(a) < abs(b) ? a : b);
 	else if (func == 1)
@@ -204,16 +192,16 @@ double minmod(double a, double b, int func) // func - type of minmod we use
 		return (a * b < 0 ? 0 : (a * a < a * b ? a : b));
 }
 
+
 // is vacuum created?
-bool is_vacuum(double gamma, double CL, double UL, double CR, double UR)// C - sound's speed
-{
+bool is_vacuum(double gamma, double CL, double UL, double CR, double UR) {
 	if (2.0 / (gamma - 1.0) * (CL + CR) < UR - UL) return true;
 	return false;
 }
 
+
 // in F calculate U on contact, in FD calculate dU/dP on contact
-void prefun(double gamma, double& F, double& FD, double P, double DK, double PK, double CK) // PK  =  PR or PL
-{
+void prefun(double gamma, double& F, double& FD, double P, double DK, double PK, double CK) {
 
 	if (P <= PK) //rarefaction wave
 	{
@@ -227,8 +215,8 @@ void prefun(double gamma, double& F, double& FD, double P, double DK, double PK,
 	}
 }
 
-void guess_p(double gamma, double Quser, double PL, double DL, double UL, double PR, double DR, double UR, double& P)
-{
+
+void Newton_find_P(double gamma, double Quser, double PL, double DL, double UL, double PR, double DR, double UR, double& P) {
 	double CUP, GEL, GER, PMAX, PMIN, PPV, QMAX, EPS = 1.e-8;
 	double CL = sqrt(gamma * PL / DL);
 	double CR = sqrt(gamma * PR / DR);
@@ -275,9 +263,9 @@ void guess_p(double gamma, double Quser, double PL, double DL, double UL, double
 	P = PM;
 }
 
+
 //  to compute the solution for pressure and velocity on contact
-void starpu(double gamma, double Quser, double PL, double DL, double UL, double PR, double DR, double UR, double& UM, double& PM)
-{
+void Rieman_solver(double gamma, double Quser, double PL, double DL, double UL, double PR, double DR, double UR, double& UM, double& PM) {
 	int NRITER = 30;
 	double CHANGE = 1e6, FL, FLD, FR, FRD, POLD, TOLPRE = 1.0e-6, UDIFF;
 	double CL = sqrt(gamma * PL / DL);
@@ -289,7 +277,7 @@ void starpu(double gamma, double Quser, double PL, double DL, double UL, double 
 		std::cout << "Vacuum is generated" << std::endl << "Program stopped" << std::endl;
 		exit(228);
 	}
-	guess_p(gamma, Quser, PL, DL, UL, PR, DR, UR, POLD);		// initial condition for pressure
+	Newton_find_P(gamma, Quser, PL, DL, UL, PR, DR, UR, POLD);		// initial condition for pressure
 
 	if (POLD < 0.)
 	{
@@ -330,10 +318,10 @@ void starpu(double gamma, double Quser, double PL, double DL, double UL, double 
 	return;
 }
 
+
 // to sample the solution throughout the wave pattern, PM, UM - contact's parameters
-void sample(double gamma, double PL, double DL, double UL, double PR, double DR, double UR,
-	double UM, double PM, double S, double& D, double& U, double& P)
-{
+void find_in_which_part(double gamma, double PL, double DL, double UL, double PR, double DR, double UR,
+	double UM, double PM, double S, double& D, double& U, double& P) {
 	double C, CML, CMR, PML, PMR, SHL, SHR, SL, SR, STL, STR;
 	//
 	// C - local sound speed in rarefaction wave
@@ -345,29 +333,23 @@ void sample(double gamma, double PL, double DL, double UL, double PR, double DR,
 	double CL = sqrt(gamma * PL / DL);
 	double CR = sqrt(gamma * PR / DR);
 
-	if (S <= UM) // point is left from contact
-	{
-		if (PM <= PL) //left rarefaction wave
-		{
+	if (S <= UM) { // point is left from contact
+		if (PM <= PL) { //left rarefaction wave
 			SHL = UL - CL;
-			if (S <= SHL) //point is left from rarefaction wave - left parameters
-			{
+			if (S <= SHL) { //point is left from rarefaction wave - left parameters
 				D = DL;
 				U = UL;
 				P = PL;
 			}
-			else
-			{
+			else {
 				CML = CL * pow((PM / PL), (gamma - 1.0) / (2.0 * gamma));
 				STL = UM - CML;
-				if (S > STL) // point is a state with *
-				{
+				if (S > STL) { // point is a state with *
 					D = DL * pow((PM / PL), (1. / gamma));
 					U = UM;
 					P = PM;
 				}
-				else //point is in a left rarefaction wave
-				{
+				else { //point is in a left rarefaction wave
 					U = 2.0 / (gamma + 1.0) * (CL + (gamma - 1.0) / 2.0 * UL + S);
 					C = 2.0 / (gamma + 1.0) * (CL + (gamma - 1.0) / 2.0 * (UL - S));
 					D = DL * pow((C / CL), 2.0 / (gamma - 1.0));
@@ -375,38 +357,31 @@ void sample(double gamma, double PL, double DL, double UL, double PR, double DR,
 				}
 			}
 		}
-		else // left shock wave
-		{
+		else { // left shock wave
 			PML = PM / PL;
 			SL = UL - CL * sqrt((gamma + 1.0) / (2.0 * gamma) * PML + (gamma - 1.0) / (2.0 * gamma));
-			if (S <= SL) //point is left from shock wave - left parameters
-			{
+			if (S <= SL) { //point is left from shock wave - left parameters
 				D = DL;
 				U = UL;
 				P = PL;
 			}
-			else // point is a state with *
-			{
+			else { // point is a state with *
 				D = DL * (PML + (gamma - 1.0) / (gamma + 1.0)) / (PML * (gamma - 1.0) / (gamma + 1.0) + 1.);
 				U = UM;
 				P = PM;
 			}
 		}
 	}
-	else // point is right from contact
-	{
-		if (PM > PR) //right from shock wave
-		{
+	else { // point is right from contact
+		if (PM > PR) { //right from shock wave
 			PMR = PM / PR;
 			SR = UR + CR * sqrt((gamma + 1.0) / (2.0 * gamma) * PMR + (gamma - 1.0) / (2.0 * gamma));
-			if (S >= SR) //point is right from shock wave - right parameters
-			{
+			if (S >= SR) { //point is right from shock wave - right parameters
 				D = DR;
 				U = UR;
 				P = PR;
 			}
-			else // point is a state with *
-			{
+			else { // point is a state with *
 				D = DR * (PMR + (gamma - 1.0) / (gamma + 1.0)) / (PMR * (gamma - 1.0) / (gamma + 1.0) + 1.);
 				U = UM;
 				P = PM;
@@ -447,8 +422,7 @@ void sample(double gamma, double PL, double DL, double UL, double PR, double DR,
 
 // Riemann solver
 void Riemann_solver(double gamma, double Quser, double PL, double DL, double UL, double PR, double DR, double UR,
-	double& D, double& U, double& P)
-{
+	double& D, double& U, double& P) {
 	double CL = sqrt(gamma * PL / DL); // left sound speed
 	double CR = sqrt(gamma * PR / DR); // right sound speed
 	double PM, UM; // pressure and velocity on contact
@@ -464,13 +438,10 @@ void Riemann_solver(double gamma, double Quser, double PL, double DL, double UL,
 		std::cout << "Vacuum is generated" << std::endl << "Program stopped" << std::endl;
 		exit(228);
 	}
-	// iteration pressure and velocity
-	//void starpu(double gamma, double Quser, double PL, double DL, double UL, double PR, double DR, double UR, double& UM, double& PM)
-
-	starpu(gamma, Quser, PL, DL, UL, PR, DR, UR, UM, PM);
+	Rieman_solver(gamma, Quser, PL, DL, UL, PR, DR, UR, UM, PM);
 
 	// found results
-	sample(gamma, PL, DL, UL, PR, DR, UR, UM, PM, 0., D, U, P);
+	find_in_which_part(gamma, PL, DL, UL, PR, DR, UR, UM, PM, 0., D, U, P);
 
 	if (P <= 0.0 || D <= 0.0 || !std::isfinite(P) || !std::isfinite(U)) {
 		std::cerr << "Invalid output from Riemann solver" << std::endl;
@@ -480,7 +451,6 @@ void Riemann_solver(double gamma, double Quser, double PL, double DL, double UL,
 
 void Godunov_flux_x(double gamma, double p, double vx, double vy, double rho, double& Fm, double& Fimpx, double& Fimpy, double& Fe) {
 	double m, impx, impy, rhoe;
-	//convert_to_conservative(double gamma, double& p, double& vx, double& vy, double& rho, double& m, double& impx, double& impy, double& rhoe)
 	noncons_to_cons(gamma, p, vx, vy, rho, m, impx, impy, rhoe);
 	Fm = rho * vx;
 	Fimpx = Fm * vx + p;
@@ -497,6 +467,7 @@ void Godunov_flux_y(double gamma, double p, double vx, double vy, double rho, do
 	Fimpy = Fm * vy + p;
 	Fe = (p + rhoe) * vy;
 }
+
 
 void Godunov_method_x(double gamma, double Quser, double ml, double impxl, double impyl, double el,
 	double mr, double impxr, double impyr, double er,
@@ -517,6 +488,7 @@ void Godunov_method_x(double gamma, double Quser, double ml, double impxl, doubl
 	Godunov_flux_x(gamma, p, vx, vy, rho, Fm, Fimpx, Fimpy, Fe);
 }
 
+
 void Godunov_method_y(double gamma, double Quser, double md, double impxd, double impyd, double ed,
 	double mu, double impxu, double impyu, double eu,
 	double& Fm, double& Fimpx, double& Fimpy, double& Fe) {
@@ -524,15 +496,8 @@ void Godunov_method_y(double gamma, double Quser, double md, double impxd, doubl
 	double pd, vxd, vyd, rhod;
 	double pu, vxu, vyu, rhou;
 
-	//convert_to_conservative(gamma, p, vx, vy, rho, m, impx, impy, rhoe);
-
 	cons_to_noncons(gamma, pd, vxd, vyd, rhod, md, impxd, impyd, ed);
 	cons_to_noncons(gamma, pu, vxu, vyu, rhou, mu, impxu, impyu, eu);
-	/*
-	void Riemann_solver(double gamma, double Quser, double PL, double DL, double UL, double PR, double DR, double UR,
-	double& D, double& U, double& P)
-	*/
-
 	Riemann_solver(gamma, Quser, pd, rhod, vyd, pu, rhou, vyu, rho, vy, p);
 
 	if (vy >= 0)
@@ -544,7 +509,8 @@ void Godunov_method_y(double gamma, double Quser, double md, double impxd, doubl
 	Godunov_flux_y(gamma, p, vx, vy, rho, Fm, Fimpx, Fimpy, Fe);
 }
 
-void GK_2d() {
+
+void Godunov_Kolgan_solver_2D() {
 	InitialState IS;
 
 	vec1d xc(IS.Nx);
@@ -552,16 +518,16 @@ void GK_2d() {
 	vec1d yc(IS.Ny);
 	vec1d y(IS.Ny + 1);
 
-	vec2d P(IS.Nx, vec1d(IS.Ny)), ux(IS.Nx, vec1d(IS.Ny)), uy(IS.Nx, vec1d(IS.Ny)), rho(IS.Nx, vec1d(IS.Ny));
-	vec2d mass(IS.Nx, vec1d(IS.Ny)), Imp_x(IS.Nx, vec1d(IS.Ny)), Imp_y(IS.Nx, vec1d(IS.Ny)), rhoe(IS.Nx, vec1d(IS.Ny));
-	vec2d new_mass(IS.Nx, vec1d(IS.Ny)), new_Imp_x(IS.Nx, vec1d(IS.Ny)), new_Imp_y(IS.Nx, vec1d(IS.Ny)), new_rhoe(IS.Nx, vec1d(IS.Ny));
+	vec2d P(IS.Ny, vec1d(IS.Nx)), ux(IS.Ny, vec1d(IS.Nx)), uy(IS.Ny, vec1d(IS.Nx)), rho(IS.Ny, vec1d(IS.Nx));
+	vec2d mass(IS.Ny, vec1d(IS.Nx)), Imp_x(IS.Ny, vec1d(IS.Nx)), Imp_y(IS.Ny, vec1d(IS.Nx)), rhoe(IS.Ny, vec1d(IS.Nx));
+	vec2d new_mass(IS.Ny, vec1d(IS.Nx)), new_Imp_x(IS.Ny, vec1d(IS.Nx)), new_Imp_y(IS.Ny, vec1d(IS.Nx)), new_rhoe(IS.Ny, vec1d(IS.Nx));
 
 
 	double mb, impxb, impyb, eb, pb, vxb, vyb, rhob;
 	double FmL, FimpxL, FimpyL, FeL, FmR, FimpxR, FimpyR, FeR;
 
 	double pl, vl, rhol, pr, vr, rhor;
-	double ml, impxl, impyl, el, mr, impxr, impyr, er;
+	double massl, impxl, impyl, rhoel, massr, impxr, impyr, rhoer;
 	double dm, dimp, de;
 
 	int iter = 0, max_Nt = 101;
@@ -573,15 +539,15 @@ void GK_2d() {
 	int minmod_type = 1, bound_left = 1, bound_right = 1, bound_down = 0, bound_up = 0;
 
 	grid(IS, x, y, xc, yc);
-	init_krujok(IS.Nx, IS.Ny, IS.gamma, xc, yc, P, ux, uy, rho, mass, Imp_x, Imp_y, rhoe);
+	initial_state(IS.Nx, IS.Ny, IS.gamma, xc, yc, P, ux, uy, rho, mass, Imp_x, Imp_y, rhoe);
 
 	writeCSV(filename, iter, xc, yc, ux, uy, P, rho, t_start, IS.Nx, IS.Ny, IS.fict);
 
 	while (t_start < IS.t_end && iter < max_Nt) {
-		tau = 10.0e6;
+		tau = 1.e6;
 		double c, temp;
-		for (int i = IS.fict; i < IS.Nx - IS.fict; ++i) {
-			for (int j = IS.fict; j < IS.Ny - IS.fict; ++j) {
+		for (int i = IS.fict; i < IS.Ny - IS.fict; ++i) {
+			for (int j = IS.fict; j < IS.Nx - IS.fict; ++j) {
 				c = sqrt(IS.gamma * P[i][j] / rho[i][j]);
 				temp = std::min(abs(IS.CFL * (x[i + 1] - x[i]) / (abs(ux[i][j]) + c)), abs(IS.CFL * (y[j + 1] - y[j]) / (abs(uy[i][j]) + c)));
 				if (temp < tau) {
@@ -590,133 +556,121 @@ void GK_2d() {
 			}
 		}
 
-		//boundary_cond_x(double p, double vxb, double vyb, double rhob, double& p, double& vx, double& vy, double& rho, int mode);
-
-		/*   START CALC   */
-		for (int i = 0; i < IS.Nx; i++) {
-			for (int j = 0; j < IS.Ny; j++) {
-
-				if (i == 0)
-				{
+		for (int i = 0; i < IS.Ny; i++) {
+			for (int j = 0; j < IS.Nx; j++) {
+				if (i == 0) {
 					Boundary_x(P[0][j], ux[0][j], uy[0][j], rho[0][j], pb, vxb, vyb, rhob, bound_left);
 					noncons_to_cons(IS.gamma, pb, vxb, vyb, rhob, mb, impxb, impyb, eb);
-					ml = mb;
+					massl = mb;
 					impxl = impxb;
 					impyl = impyb;
-					el = eb;
+					rhoel = eb;
 
-					mr = mass[0][j] - 0.5 * minmod(mass[0][j] - mb, mass[1][j] - mass[0][j], minmod_type);
+					massr = mass[0][j] - 0.5 * minmod(mass[0][j] - mb, mass[1][j] - mass[0][j], minmod_type);
 					impxr = Imp_x[0][j] - 0.5 * minmod(Imp_x[0][j] - impxb, Imp_x[1][j] - Imp_x[0][j], minmod_type);
 					impyr = Imp_y[0][j] - 0.5 * minmod(Imp_y[0][j] - impyb, Imp_y[1][j] - Imp_y[0][j], minmod_type);
-					er = rhoe[0][j] - 0.5 * minmod(rhoe[0][j] - eb, rhoe[1][j] - rhoe[0][j], minmod_type);
+					rhoer = rhoe[0][j] - 0.5 * minmod(rhoe[0][j] - eb, rhoe[1][j] - rhoe[0][j], minmod_type);
 				}
 
-				else if (i == 1)
-				{
+				else if (i == 1) {
 					Boundary_x(P[0][j], ux[0][j], uy[0][j], rho[0][j], pb, vxb, vyb, rhob, bound_left);
 					noncons_to_cons(IS.gamma, pb, vxb, vyb, rhob, mb, impxb, impyb, eb);
 
-					ml = mass[0][j] + 0.5 * minmod(mass[0][j] - mb, mass[1][j] - mass[0][j], minmod_type);
+					massl = mass[0][j] + 0.5 * minmod(mass[0][j] - mb, mass[1][j] - mass[0][j], minmod_type);
 					impxl = Imp_x[0][j] + 0.5 * minmod(Imp_x[0][j] - impxb, Imp_x[1][j] - Imp_x[0][j], minmod_type);
 					impyl = Imp_y[0][j] + 0.5 * minmod(Imp_y[0][j] - impyb, Imp_y[1][j] - Imp_y[0][j], minmod_type);
-					el = rhoe[0][j] + 0.5 * minmod(rhoe[0][j] - eb, rhoe[1][j] - rhoe[0][j], minmod_type);
+					rhoel = rhoe[0][j] + 0.5 * minmod(rhoe[0][j] - eb, rhoe[1][j] - rhoe[0][j], minmod_type);
 
-					mr = mass[1][j] - 0.5 * minmod(mass[i][j] - mass[i - 1][j], mass[i + 1][j] - mass[i][j], minmod_type);
+					massr = mass[1][j] - 0.5 * minmod(mass[i][j] - mass[i - 1][j], mass[i + 1][j] - mass[i][j], minmod_type);
 					impxr = Imp_x[1][j] - 0.5 * minmod(Imp_x[i][j] - Imp_x[i - 1][j], Imp_x[i + 1][j] - Imp_x[i][j], minmod_type);
 					impyr = Imp_y[1][j] - 0.5 * minmod(Imp_y[i][j] - Imp_y[i - 1][j], Imp_y[i + 1][j] - Imp_y[i][j], minmod_type);
-					er = rhoe[1][j] - 0.5 * minmod(rhoe[i][j] - rhoe[i - 1][j], rhoe[i + 1][j] - rhoe[i][j], minmod_type);
+					rhoer = rhoe[1][j] - 0.5 * minmod(rhoe[i][j] - rhoe[i - 1][j], rhoe[i + 1][j] - rhoe[i][j], minmod_type);
 				}
 
-				else if (i == IS.Nx - 1)
-				{
+				else if (i == IS.Nx - 1) {
 					Boundary_x(P[IS.Nx - 1][j], ux[IS.Nx - 1][j], uy[IS.Nx - 1][j], rho[IS.Nx - 1][j], pb, vxb, vyb, rhob, bound_right);
 					noncons_to_cons(IS.gamma, pb, vxb, vyb, rhob, mb, impxb, impyb, eb);
 
-					ml = mass[i - 1][j] + 0.5 * minmod(mass[i - 1][j] - mass[i - 2][j], mass[i][j] - mass[i - 1][j], minmod_type);
+					massl = mass[i - 1][j] + 0.5 * minmod(mass[i - 1][j] - mass[i - 2][j], mass[i][j] - mass[i - 1][j], minmod_type);
 					impxl = Imp_x[i - 1][j] + 0.5 * minmod(Imp_x[i - 1][j] - Imp_x[i - 2][j], Imp_x[i][j] - Imp_x[i - 1][j], minmod_type);
 					impyl = Imp_y[i - 1][j] + 0.5 * minmod(Imp_y[i - 1][j] - Imp_y[i - 2][j], Imp_y[i][j] - Imp_y[i - 1][j], minmod_type);
-					el = rhoe[i - 1][j] + 0.5 * minmod(rhoe[i - 1][j] - rhoe[i - 2][j], rhoe[i][j] - rhoe[i - 1][j], minmod_type);
+					rhoel = rhoe[i - 1][j] + 0.5 * minmod(rhoe[i - 1][j] - rhoe[i - 2][j], rhoe[i][j] - rhoe[i - 1][j], minmod_type);
 
-					mr = mass[i][j] - 0.5 * minmod(mass[i][j] - mass[i - 1][j], mb - mass[i][j], minmod_type);
+					massr = mass[i][j] - 0.5 * minmod(mass[i][j] - mass[i - 1][j], mb - mass[i][j], minmod_type);
 					impxr = Imp_x[i][j] - 0.5 * minmod(Imp_x[i][j] - Imp_x[i - 1][j], impxb - Imp_x[i][j], minmod_type);
 					impyr = Imp_y[i][j] - 0.5 * minmod(Imp_y[i][j] - Imp_y[i - 1][j], impyb - Imp_y[i][j], minmod_type);
-					er = rhoe[i][j] - 0.5 * minmod(rhoe[i][j] - rhoe[i - 1][j], eb - rhoe[i][j], minmod_type);
+					rhoer = rhoe[i][j] - 0.5 * minmod(rhoe[i][j] - rhoe[i - 1][j], eb - rhoe[i][j], minmod_type);
 				}
 
-				else
-				{
-					ml = mass[i - 1][j] + 0.5 * minmod(mass[i - 1][j] - mass[i - 2][j], mass[i][j] - mass[i - 1][j], minmod_type);
+				else {
+					massl = mass[i - 1][j] + 0.5 * minmod(mass[i - 1][j] - mass[i - 2][j], mass[i][j] - mass[i - 1][j], minmod_type);
 					impxl = Imp_x[i - 1][j] + 0.5 * minmod(Imp_x[i - 1][j] - Imp_x[i - 2][j], Imp_x[i][j] - Imp_x[i - 1][j], minmod_type);
 					impyl = Imp_y[i - 1][j] + 0.5 * minmod(Imp_y[i - 1][j] - Imp_y[i - 2][j], Imp_y[i][j] - Imp_y[i - 1][j], minmod_type);
-					el = rhoe[i - 1][j] + 0.5 * minmod(rhoe[i - 1][j] - rhoe[i - 2][j], rhoe[i][j] - rhoe[i - 1][j], minmod_type);
+					rhoel = rhoe[i - 1][j] + 0.5 * minmod(rhoe[i - 1][j] - rhoe[i - 2][j], rhoe[i][j] - rhoe[i - 1][j], minmod_type);
 
-					mr = mass[i][j] - 0.5 * minmod(mass[i][j] - mass[i - 1][j], mass[i + 1][j] - mass[i][j], minmod_type);
+					massr = mass[i][j] - 0.5 * minmod(mass[i][j] - mass[i - 1][j], mass[i + 1][j] - mass[i][j], minmod_type);
 					impxr = Imp_x[i][j] - 0.5 * minmod(Imp_x[i][j] - Imp_x[i - 1][j], Imp_x[i + 1][j] - Imp_x[i][j], minmod_type);
 					impyr = Imp_y[i][j] - 0.5 * minmod(Imp_y[i][j] - Imp_y[i - 1][j], Imp_y[i + 1][j] - Imp_y[i][j], minmod_type);
-					er = rhoe[i][j] - 0.5 * minmod(rhoe[i][j] - rhoe[i - 1][j], rhoe[i + 1][j] - rhoe[i][j], minmod_type);
+					rhoer = rhoe[i][j] - 0.5 * minmod(rhoe[i][j] - rhoe[i - 1][j], rhoe[i + 1][j] - rhoe[i][j], minmod_type);
 				}
-				Godunov_method_x(IS.gamma, IS.Q, ml, impxl, impyl, el, mr, impxr, impyr, er, FmL, FimpxL, FimpyL, FeL);
+				Godunov_method_x(IS.gamma, IS.Q, massl, impxl, impyl, rhoel, massr, impxr, impyr, rhoer, FmL, FimpxL, FimpyL, FeL);
 
 				//		����� ����� ������ ����� ������
-				if (i == IS.Nx - 1)
-				{
+				if (i == IS.Nx - 1) {
 					Boundary_x(P[IS.Nx - 1][j], ux[IS.Nx - 1][j], uy[IS.Nx - 1][j], rho[IS.Nx - 1][j], pb, vxb, vyb, rhob, bound_right);
 					noncons_to_cons(IS.gamma, pb, vxb, vyb, rhob, mb, impxb, impyb, eb);
 
-					ml = mass[i][j] + 0.5 * minmod(mass[i][j] - mass[i - 1][j], mb - mass[i][j], minmod_type);
+					massl = mass[i][j] + 0.5 * minmod(mass[i][j] - mass[i - 1][j], mb - mass[i][j], minmod_type);
 					impxl = Imp_x[i][j] + 0.5 * minmod(Imp_x[i][j] - Imp_x[i - 1][j], impxb - Imp_x[i][j], minmod_type);
 					impyl = Imp_y[i][j] + 0.5 * minmod(Imp_y[i][j] - Imp_y[i - 1][j], impyb - Imp_y[i][j], minmod_type);
-					el = rhoe[i][j] + 0.5 * minmod(rhoe[i][j] - rhoe[i - 1][j], eb - rhoe[i][j], minmod_type);
+					rhoel = rhoe[i][j] + 0.5 * minmod(rhoe[i][j] - rhoe[i - 1][j], eb - rhoe[i][j], minmod_type);
 
-					mr = mb; //m[IS.Nx - 1][j];
+					massr = mb; //m[IS.Nx - 1][j];
 					impxr = impxb; //impx[IS.Nx - 1][j];
 					impyr = impyb; //impy[IS.Nx - 1][j];
-					er = eb; //rhoe[IS.Nx - 1][j];
+					rhoer = eb; //rhoe[IS.Nx - 1][j];
 
 				}
-				else if (i == IS.Nx - 2)
-				{
+				else if (i == IS.Nx - 2) {
 					Boundary_x(P[IS.Nx - 1][j], ux[IS.Nx - 1][j], uy[IS.Nx - 1][j], rho[IS.Nx - 1][j], pb, vxb, vyb, rhob, bound_right);
 					noncons_to_cons(IS.gamma, pb, vxb, vyb, rhob, mb, impxb, impyb, eb);
 
-					ml = mass[i][j] + 0.5 * minmod(mass[i][j] - mass[i - 1][j], mass[i + 1][j] - mass[i][j], minmod_type);
+					massl = mass[i][j] + 0.5 * minmod(mass[i][j] - mass[i - 1][j], mass[i + 1][j] - mass[i][j], minmod_type);
 					impxl = Imp_x[i][j] + 0.5 * minmod(Imp_x[i][j] - Imp_x[i - 1][j], Imp_x[i + 1][j] - Imp_x[i][j], minmod_type);
 					impyl = Imp_y[i][j] + 0.5 * minmod(Imp_y[i][j] - Imp_y[i - 1][j], Imp_y[i + 1][j] - Imp_y[i][j], minmod_type);
-					el = rhoe[i][j] + 0.5 * minmod(rhoe[i][j] - rhoe[i - 1][j], rhoe[i + 1][j] - rhoe[i][j], minmod_type);
+					rhoel = rhoe[i][j] + 0.5 * minmod(rhoe[i][j] - rhoe[i - 1][j], rhoe[i + 1][j] - rhoe[i][j], minmod_type);
 
-					mr = mass[i + 1][j] - 0.5 * minmod(mass[i + 1][j] - mass[i][j], mb - mass[i + 1][j], minmod_type);
+					massr = mass[i + 1][j] - 0.5 * minmod(mass[i + 1][j] - mass[i][j], mb - mass[i + 1][j], minmod_type);
 					impxr = Imp_x[i + 1][j] - 0.5 * minmod(Imp_x[i + 1][j] - Imp_x[i][j], impxb - Imp_x[i + 1][j], minmod_type);
 					impyr = Imp_y[i + 1][j] - 0.5 * minmod(Imp_y[i + 1][j] - Imp_y[i][j], impyb - Imp_y[i + 1][j], minmod_type);
-					er = rhoe[i + 1][j] - 0.5 * minmod(rhoe[i + 1][j] - rhoe[i][j], eb - rhoe[i + 1][j], minmod_type);
+					rhoer = rhoe[i + 1][j] - 0.5 * minmod(rhoe[i + 1][j] - rhoe[i][j], eb - rhoe[i + 1][j], minmod_type);
 				}
-				else if (i == 0)
-				{
+				else if (i == 0) {
 					Boundary_x(P[0][j], ux[0][j], uy[0][j], rho[0][j], pb, vxb, vyb, rhob, bound_left);
 					noncons_to_cons(IS.gamma, pb, vxb, vyb, rhob, mb, impxb, impyb, eb);
 
-					ml = mass[i][j] + 0.5 * minmod(mass[i][j] - mb, mass[i + 1][j] - mass[i][j], minmod_type);
+					massl = mass[i][j] + 0.5 * minmod(mass[i][j] - mb, mass[i + 1][j] - mass[i][j], minmod_type);
 					impxl = Imp_x[i][j] + 0.5 * minmod(Imp_x[i][j] - impxb, Imp_x[i + 1][j] - Imp_x[i][j], minmod_type);
 					impyl = Imp_y[i][j] + 0.5 * minmod(Imp_y[i][j] - impyb, Imp_y[i + 1][j] - Imp_y[i][j], minmod_type);
-					el = rhoe[i][j] + 0.5 * minmod(rhoe[i][j] - eb, rhoe[i + 1][j] - rhoe[i][j], minmod_type);
+					rhoel = rhoe[i][j] + 0.5 * minmod(rhoe[i][j] - eb, rhoe[i + 1][j] - rhoe[i][j], minmod_type);
 
-					mr = mass[i + 1][j] - 0.5 * minmod(mass[i + 1][j] - mass[i][j], mass[i + 2][j] - mass[i + 1][j], minmod_type);
+					massr = mass[i + 1][j] - 0.5 * minmod(mass[i + 1][j] - mass[i][j], mass[i + 2][j] - mass[i + 1][j], minmod_type);
 					impxr = Imp_x[i + 1][j] - 0.5 * minmod(Imp_x[i + 1][j] - Imp_x[i][j], Imp_x[i + 2][j] - Imp_x[i + 1][j], minmod_type);
 					impyr = Imp_y[i + 1][j] - 0.5 * minmod(Imp_y[i + 1][j] - Imp_y[i][j], Imp_y[i + 2][j] - Imp_y[i + 1][j], minmod_type);
-					er = rhoe[i + 1][j] - 0.5 * minmod(rhoe[i + 1][j] - rhoe[i][j], rhoe[i + 2][j] - rhoe[i + 1][j], minmod_type);
+					rhoer = rhoe[i + 1][j] - 0.5 * minmod(rhoe[i + 1][j] - rhoe[i][j], rhoe[i + 2][j] - rhoe[i + 1][j], minmod_type);
 				}
-				else
-				{
-					ml = mass[i][j] + 0.5 * minmod(mass[i][j] - mass[i - 1][j], mass[i + 1][j] - mass[i][j], minmod_type);
+				else {
+					massl = mass[i][j] + 0.5 * minmod(mass[i][j] - mass[i - 1][j], mass[i + 1][j] - mass[i][j], minmod_type);
 					impxl = Imp_x[i][j] + 0.5 * minmod(Imp_x[i][j] - Imp_x[i - 1][j], Imp_x[i + 1][j] - Imp_x[i][j], minmod_type);
 					impyl = Imp_y[i][j] + 0.5 * minmod(Imp_y[i][j] - Imp_y[i - 1][j], Imp_y[i + 1][j] - Imp_y[i][j], minmod_type);
-					el = rhoe[i][j] + 0.5 * minmod(rhoe[i][j] - rhoe[i - 1][j], rhoe[i + 1][j] - rhoe[i][j], minmod_type);
+					rhoel = rhoe[i][j] + 0.5 * minmod(rhoe[i][j] - rhoe[i - 1][j], rhoe[i + 1][j] - rhoe[i][j], minmod_type);
 
-					mr = mass[i + 1][j] - 0.5 * minmod(mass[i + 1][j] - mass[i][j], mass[i + 2][j] - mass[i + 1][j], minmod_type);
+					massr = mass[i + 1][j] - 0.5 * minmod(mass[i + 1][j] - mass[i][j], mass[i + 2][j] - mass[i + 1][j], minmod_type);
 					impxr = Imp_x[i + 1][j] - 0.5 * minmod(Imp_x[i + 1][j] - Imp_x[i][j], Imp_x[i + 2][j] - Imp_x[i + 1][j], minmod_type);
 					impyr = Imp_y[i + 1][j] - 0.5 * minmod(Imp_y[i + 1][j] - Imp_y[i][j], Imp_y[i + 2][j] - Imp_y[i + 1][j], minmod_type);
-					er = rhoe[i + 1][j] - 0.5 * minmod(rhoe[i + 1][j] - rhoe[i][j], rhoe[i + 2][j] - rhoe[i + 1][j], minmod_type);
+					rhoer = rhoe[i + 1][j] - 0.5 * minmod(rhoe[i + 1][j] - rhoe[i][j], rhoe[i + 2][j] - rhoe[i + 1][j], minmod_type);
 				}
-				Godunov_method_x(IS.gamma, IS.Q, ml, impxl, impyl, el, mr, impxr, impyr, er, FmR, FimpxR, FimpyR, FeR);
+				Godunov_method_x(IS.gamma, IS.Q, massl, impxl, impyl, rhoel, massr, impxr, impyr, rhoer, FmR, FimpxR, FimpyR, FeR);
 
 				//std::cout << FmL << " " << FmR << std::endl;
 
@@ -725,130 +679,117 @@ void GK_2d() {
 				new_Imp_y[i][j] = Imp_y[i][j] - tau * (FimpyR - FimpyL) / IS.hx;
 				new_rhoe[i][j] = rhoe[i][j] - tau * (FeR - FeL) / IS.hx;
 
-				//		������ ����� y
-				// 
-				//		����� ����� ������ �����
-				//
-				if (j == 0)
-				{
+				if (j == 0) {
 					Boundary_x(P[i][0], ux[i][0], uy[i][0], rho[i][0], pb, vxb, vyb, rhob, bound_down);
 					noncons_to_cons(IS.gamma, pb, vxb, vyb, rhob, mb, impxb, impyb, eb);
-					ml = mb;
+					massl = mb;
 					impxl = impxb;
 					impyl = impyb;
-					el = eb;
+					rhoel = eb;
 
-					mr = mass[i][0] - 0.5 * minmod(mass[i][0] - mb, mass[i][1] - mass[i][0], minmod_type);
+					massr = mass[i][0] - 0.5 * minmod(mass[i][0] - mb, mass[i][1] - mass[i][0], minmod_type);
 					impxr = Imp_x[i][0] - 0.5 * minmod(Imp_x[i][0] - impxb, Imp_x[i][1] - Imp_x[i][0], minmod_type);
 					impyr = Imp_y[i][0] - 0.5 * minmod(Imp_y[i][0] - impyb, Imp_y[i][1] - Imp_y[i][0], minmod_type);
-					er = rhoe[i][0] - 0.5 * minmod(rhoe[i][0] - eb, rhoe[i][1] - rhoe[i][0], minmod_type);
+					rhoer = rhoe[i][0] - 0.5 * minmod(rhoe[i][0] - eb, rhoe[i][1] - rhoe[i][0], minmod_type);
 				}
 
-				else if (j == 1)
-				{
+				else if (j == 1) {
 					Boundary_y(P[i][0], ux[i][0], uy[i][0], rho[i][0], pb, vxb, vyb, rhob, bound_down);
 					noncons_to_cons(IS.gamma, pb, vxb, vyb, rhob, mb, impxb, impyb, eb);
 
-					mr = mass[i][0] + 0.5 * minmod(mass[i][0] - mb, mass[i][1] - mass[i][0], minmod_type);
+					massr = mass[i][0] + 0.5 * minmod(mass[i][0] - mb, mass[i][1] - mass[i][0], minmod_type);
 					impxr = Imp_x[i][0] + 0.5 * minmod(Imp_x[i][0] - impxb, Imp_x[i][1] - Imp_x[i][0], minmod_type);
 					impyr = Imp_y[i][0] + 0.5 * minmod(Imp_y[i][0] - impyb, Imp_y[i][1] - Imp_y[i][0], minmod_type);
-					er = rhoe[i][0] + 0.5 * minmod(rhoe[i][0] - eb, rhoe[i][1] - rhoe[i][0], minmod_type);
+					rhoer = rhoe[i][0] + 0.5 * minmod(rhoe[i][0] - eb, rhoe[i][1] - rhoe[i][0], minmod_type);
 
-					mr = mass[i][1] - 0.5 * minmod(mass[i][j] - mass[i][j - 1], mass[i][j + 1] - mass[i][j], minmod_type);
+					massr = mass[i][1] - 0.5 * minmod(mass[i][j] - mass[i][j - 1], mass[i][j + 1] - mass[i][j], minmod_type);
 					impxr = Imp_x[i][1] - 0.5 * minmod(Imp_x[i][j] - Imp_x[i][j - 1], Imp_x[i][j + 1] - Imp_x[i][j], minmod_type);
 					impyr = Imp_y[i][1] - 0.5 * minmod(Imp_y[i][j] - Imp_y[i][j - 1], Imp_y[i][j + 1] - Imp_y[i][j], minmod_type);
-					er = rhoe[i][1] - 0.5 * minmod(rhoe[i][j] - rhoe[i][j - 1], rhoe[i][j + 1] - rhoe[i][j], minmod_type);
+					rhoer = rhoe[i][1] - 0.5 * minmod(rhoe[i][j] - rhoe[i][j - 1], rhoe[i][j + 1] - rhoe[i][j], minmod_type);
 				}
 
-				else if (j == IS.Ny - 1)
-				{
+				else if (j == IS.Ny - 1) {
 					Boundary_y(P[i][IS.Ny - 1], ux[i][IS.Ny - 1], uy[i][IS.Ny - 1], rho[i][IS.Ny - 1], pb, vxb, vyb, rhob, bound_up);
 					noncons_to_cons(IS.gamma, pb, vxb, vyb, rhob, mb, impxb, impyb, eb);
 
-					ml = mass[i][j - 1] + 0.5 * minmod(mass[i][j - 1] - mass[i][j - 2], mass[i][j] - mass[i][j - 1], minmod_type);
+					massl = mass[i][j - 1] + 0.5 * minmod(mass[i][j - 1] - mass[i][j - 2], mass[i][j] - mass[i][j - 1], minmod_type);
 					impxl = Imp_x[i][j - 1] + 0.5 * minmod(Imp_x[i][j - 1] - Imp_x[i][j - 2], Imp_x[i][j] - Imp_x[i][j - 1], minmod_type);
 					impyl = Imp_y[i][j - 1] + 0.5 * minmod(Imp_y[i][j - 1] - Imp_y[i][j - 2], Imp_y[i][j] - Imp_y[i][j - 1], minmod_type);
-					el = rhoe[i][j - 1] + 0.5 * minmod(rhoe[i][j - 1] - rhoe[i][j - 2], rhoe[i][j] - rhoe[i][j - 1], minmod_type);
+					rhoel = rhoe[i][j - 1] + 0.5 * minmod(rhoe[i][j - 1] - rhoe[i][j - 2], rhoe[i][j] - rhoe[i][j - 1], minmod_type);
 
-					mr = mass[i][j] - 0.5 * minmod(mass[i][j] - mass[i][j - 1], mb - mass[i][j], minmod_type);
+					massr = mass[i][j] - 0.5 * minmod(mass[i][j] - mass[i][j - 1], mb - mass[i][j], minmod_type);
 					impxr = Imp_x[i][j] - 0.5 * minmod(Imp_x[i][j] - Imp_x[i][j - 1], impxb - Imp_x[i][j], minmod_type);
 					impyr = Imp_y[i][j] - 0.5 * minmod(Imp_y[i][j] - Imp_y[i][j - 1], impyb - Imp_y[i][j], minmod_type);
-					er = rhoe[i][j] - 0.5 * minmod(rhoe[i][j] - rhoe[i][j - 1], eb - rhoe[i][j], minmod_type);
+					rhoer = rhoe[i][j] - 0.5 * minmod(rhoe[i][j] - rhoe[i][j - 1], eb - rhoe[i][j], minmod_type);
 				}
 
-				else
-				{
-					ml = mass[i][j - 1] + 0.5 * minmod(mass[i][j - 1] - mass[i][j - 2], mass[i][j] - mass[i][j - 1], minmod_type);
+				else {
+					massl = mass[i][j - 1] + 0.5 * minmod(mass[i][j - 1] - mass[i][j - 2], mass[i][j] - mass[i][j - 1], minmod_type);
 					impxl = Imp_x[i][j - 1] + 0.5 * minmod(Imp_x[i][j - 1] - Imp_x[i][j - 2], Imp_x[i][j] - Imp_x[i][j - 1], minmod_type);
 					impyl = Imp_y[i][j - 1] + 0.5 * minmod(Imp_y[i][j - 1] - Imp_y[i][j - 2], Imp_y[i][j] - Imp_y[i][j - 1], minmod_type);
-					el = rhoe[i][j - 1] + 0.5 * minmod(rhoe[i][j - 1] - rhoe[i][j - 2], rhoe[i][j] - rhoe[i][j - 1], minmod_type);
+					rhoel = rhoe[i][j - 1] + 0.5 * minmod(rhoe[i][j - 1] - rhoe[i][j - 2], rhoe[i][j] - rhoe[i][j - 1], minmod_type);
 
-					mr = mass[i][j] - 0.5 * minmod(mass[i][j] - mass[i][j - 1], mass[i][j + 1] - mass[i][j], minmod_type);
+					massr = mass[i][j] - 0.5 * minmod(mass[i][j] - mass[i][j - 1], mass[i][j + 1] - mass[i][j], minmod_type);
 					impxr = Imp_x[i][j] - 0.5 * minmod(Imp_x[i][j] - Imp_x[i][j - 1], Imp_x[i][j + 1] - Imp_x[i][j], minmod_type);
 					impyr = Imp_y[i][j] - 0.5 * minmod(Imp_y[i][j] - Imp_y[i][j - 1], Imp_y[i][j + 1] - Imp_y[i][j], minmod_type);
-					er = rhoe[i][j] - 0.5 * minmod(rhoe[i][j] - rhoe[i][j - 1], rhoe[i][j + 1] - rhoe[i][j], minmod_type);
+					rhoer = rhoe[i][j] - 0.5 * minmod(rhoe[i][j] - rhoe[i][j - 1], rhoe[i][j + 1] - rhoe[i][j], minmod_type);
 				}
-				Godunov_method_y(IS.gamma, IS.Q, ml, impxl, impyl, el, mr, impxr, impyr, er, FmL, FimpxL, FimpyL, FeL);
+				Godunov_method_y(IS.gamma, IS.Q, massl, impxl, impyl, rhoel, massr, impxr, impyr, rhoer, FmL, FimpxL, FimpyL, FeL);
 
-				//		����� ����� ������� ����� ������
-				if (j == IS.Ny - 1)
-				{
+				if (j == IS.Ny - 1) {
 					Boundary_y(P[i][IS.Ny - 1], ux[i][IS.Ny - 1], uy[i][IS.Ny - 1], rho[i][IS.Ny - 1], pb, vxb, vyb, rhob, bound_up);
 					noncons_to_cons(IS.gamma, pb, vxb, vyb, rhob, mb, impxb, impyb, eb);
 
-					ml = mass[i][j] + 0.5 * minmod(mass[i][j] - mass[i][j - 1], mb - mass[i][j], minmod_type);
+					massl = mass[i][j] + 0.5 * minmod(mass[i][j] - mass[i][j - 1], mb - mass[i][j], minmod_type);
 					impxl = Imp_x[i][j] + 0.5 * minmod(Imp_x[i][j] - Imp_x[i][j - 1], impxb - Imp_x[i][j], minmod_type);
 					impyl = Imp_y[i][j] + 0.5 * minmod(Imp_y[i][j] - Imp_y[i][j - 1], impyb - Imp_y[i][j], minmod_type);
-					el = rhoe[i][j] + 0.5 * minmod(rhoe[i][j] - rhoe[i][j - 1], eb - rhoe[i][j], minmod_type);
+					rhoel = rhoe[i][j] + 0.5 * minmod(rhoe[i][j] - rhoe[i][j - 1], eb - rhoe[i][j], minmod_type);
 
-					mr = mb;
+					massr = mb;
 					impxr = impxb;
 					impyr = impyb;
-					er = eb;
+					rhoer = eb;
 				}
-				else if (j == IS.Ny - 2)
-				{
+				else if (j == IS.Ny - 2) {
 					Boundary_y(P[i][IS.Ny - 1], ux[i][IS.Ny - 1], uy[i][IS.Ny - 1], rho[i][IS.Ny - 1], pb, vxb, vyb, rhob, bound_up);
 					noncons_to_cons(IS.gamma, pb, vxb, vyb, rhob, mb, impxb, impyb, eb);
 
-					ml = mass[i][j] + 0.5 * minmod(mass[i][j] - mass[i][j - 1], mass[i][j + 1] - mass[i][j], minmod_type);
+					massl = mass[i][j] + 0.5 * minmod(mass[i][j] - mass[i][j - 1], mass[i][j + 1] - mass[i][j], minmod_type);
 					impxl = Imp_x[i][j] + 0.5 * minmod(Imp_x[i][j] - Imp_x[i][j - 1], Imp_x[i][j + 1] - Imp_x[i][j], minmod_type);
 					impyl = Imp_y[i][j] + 0.5 * minmod(Imp_y[i][j] - Imp_y[i][j - 1], Imp_y[i][j + 1] - Imp_y[i][j], minmod_type);
-					el = rhoe[i][j] + 0.5 * minmod(rhoe[i][j] - rhoe[i][j - 1], rhoe[i][j + 1] - rhoe[i][j], minmod_type);
+					rhoel = rhoe[i][j] + 0.5 * minmod(rhoe[i][j] - rhoe[i][j - 1], rhoe[i][j + 1] - rhoe[i][j], minmod_type);
 
-					mr = mass[i][j + 1] - 0.5 * minmod(mass[i][j + 1] - mass[i][j], mb - mass[i][j + 1], minmod_type);
+					massr = mass[i][j + 1] - 0.5 * minmod(mass[i][j + 1] - mass[i][j], mb - mass[i][j + 1], minmod_type);
 					impxr = Imp_x[i][j + 1] - 0.5 * minmod(Imp_x[i][j + 1] - Imp_x[i][j], impxb - Imp_x[i][j + 1], minmod_type);
 					impyr = Imp_y[i][j + 1] - 0.5 * minmod(Imp_y[i][j + 1] - Imp_y[i][j], impyb - Imp_y[i][j + 1], minmod_type);
-					er = rhoe[i][j + 1] - 0.5 * minmod(rhoe[i][j + 1] - rhoe[i][j], eb - rhoe[i][j + 1], minmod_type);
+					rhoer = rhoe[i][j + 1] - 0.5 * minmod(rhoe[i][j + 1] - rhoe[i][j], eb - rhoe[i][j + 1], minmod_type);
 				}
-				else if (j == 0)
-				{
+				else if (j == 0) {
 					Boundary_y(P[i][0], ux[i][0], uy[i][0], rho[i][0], pb, vxb, vyb, rhob, bound_down);
 					noncons_to_cons(IS.gamma, pb, vxb, vyb, rhob, mb, impxb, impyb, eb);
 
-					ml = mass[i][j] + 0.5 * minmod(mass[i][j] - mb, mass[i][j + 1] - mass[i][j], minmod_type);
+					massl = mass[i][j] + 0.5 * minmod(mass[i][j] - mb, mass[i][j + 1] - mass[i][j], minmod_type);
 					impxl = Imp_x[i][j] + 0.5 * minmod(Imp_x[i][j] - impxb, Imp_x[i][j + 1] - Imp_x[i][j], minmod_type);
 					impyl = Imp_y[i][j] + 0.5 * minmod(Imp_y[i][j] - impyb, Imp_y[i][j + 1] - Imp_y[i][j], minmod_type);
-					el = rhoe[i][j] + 0.5 * minmod(rhoe[i][j] - eb, rhoe[i][j + 1] - rhoe[i][j], minmod_type);
+					rhoel = rhoe[i][j] + 0.5 * minmod(rhoe[i][j] - eb, rhoe[i][j + 1] - rhoe[i][j], minmod_type);
 
-					mr = mass[i][j + 1] - 0.5 * minmod(mass[i][j + 1] - mass[i][j], mass[i][j + 2] - mass[i][j + 1], minmod_type);
+					massr = mass[i][j + 1] - 0.5 * minmod(mass[i][j + 1] - mass[i][j], mass[i][j + 2] - mass[i][j + 1], minmod_type);
 					impxr = Imp_x[i][j + 1] - 0.5 * minmod(Imp_x[i][j + 1] - Imp_x[i][j], Imp_x[i][j + 2] - Imp_x[i][j + 1], minmod_type);
 					impyr = Imp_y[i][j + 1] - 0.5 * minmod(Imp_y[i][j + 1] - Imp_y[i][j], Imp_y[i][j + 2] - Imp_y[i][j + 1], minmod_type);
-					er = rhoe[i][j + 1] - 0.5 * minmod(rhoe[i][j + 1] - rhoe[i][j], rhoe[i][j + 2] - rhoe[i][j + 1], minmod_type);
+					rhoer = rhoe[i][j + 1] - 0.5 * minmod(rhoe[i][j + 1] - rhoe[i][j], rhoe[i][j + 2] - rhoe[i][j + 1], minmod_type);
 				}
-				else
-				{
-					ml = mass[i][j] + 0.5 * minmod(mass[i][j] - mass[i][j - 1], mass[i][j + 1] - mass[i][j], minmod_type);
+				else {
+					massl = mass[i][j] + 0.5 * minmod(mass[i][j] - mass[i][j - 1], mass[i][j + 1] - mass[i][j], minmod_type);
 					impxl = Imp_x[i][j] + 0.5 * minmod(Imp_x[i][j] - Imp_x[i][j - 1], Imp_x[i][j + 1] - Imp_x[i][j], minmod_type);
 					impyl = Imp_y[i][j] + 0.5 * minmod(Imp_y[i][j] - Imp_y[i][j - 1], Imp_y[i][j + 1] - Imp_y[i][j], minmod_type);
-					el = rhoe[i][j] + 0.5 * minmod(rhoe[i][j] - rhoe[i][j - 1], rhoe[i][j + 1] - rhoe[i][j], minmod_type);
+					rhoel = rhoe[i][j] + 0.5 * minmod(rhoe[i][j] - rhoe[i][j - 1], rhoe[i][j + 1] - rhoe[i][j], minmod_type);
 
-					mr = mass[i][j + 1] - 0.5 * minmod(mass[i][j + 1] - mass[i][j], mass[i][j + 2] - mass[i][j + 1], minmod_type);
+					massr = mass[i][j + 1] - 0.5 * minmod(mass[i][j + 1] - mass[i][j], mass[i][j + 2] - mass[i][j + 1], minmod_type);
 					impxr = Imp_x[i][j + 1] - 0.5 * minmod(Imp_x[i][j + 1] - Imp_x[i][j], Imp_x[i][j + 2] - Imp_x[i][j + 1], minmod_type);
 					impyr = Imp_y[i][j + 1] - 0.5 * minmod(Imp_y[i][j + 1] - Imp_y[i][j], Imp_y[i][j + 2] - Imp_y[i][j + 1], minmod_type);
-					er = rhoe[i][j + 1] - 0.5 * minmod(rhoe[i][j + 1] - rhoe[i][j], rhoe[i][j + 2] - rhoe[i][j + 1], minmod_type);
+					rhoer = rhoe[i][j + 1] - 0.5 * minmod(rhoe[i][j + 1] - rhoe[i][j], rhoe[i][j + 2] - rhoe[i][j + 1], minmod_type);
 				}
-				Godunov_method_y(IS.gamma, IS.Q, ml, impxl, impyl, el, mr, impxr, impyr, er, FmR, FimpxR, FimpyR, FeR);
+				Godunov_method_y(IS.gamma, IS.Q, massl, impxl, impyl, rhoel, massr, impxr, impyr, rhoer, FmR, FimpxR, FimpyR, FeR);
 				//std::cout << FmL << " " << FmR << std::endl;
 
 				new_mass[i][j] = new_mass[i][j] - tau * (FmR - FmL) / IS.hy;
@@ -858,13 +799,10 @@ void GK_2d() {
 
 			}
 		}
-		/*    END CALC    */
 
 		// update parameters
-		for (int i = 0; i < IS.Nx; ++i)
-		{
-			for (int j = 0; j < IS.Ny; ++j)
-			{
+		for (int i = 0; i < IS.Ny; ++i) {
+			for (int j = 0; j < IS.Nx; ++j) {
 				mass[i][j] = new_mass[i][j];
 				Imp_x[i][j] = new_Imp_x[i][j];
 				Imp_y[i][j] = new_Imp_y[i][j];
@@ -894,9 +832,7 @@ void GK_2d() {
 }
 
 
-int main()
-{
-	GK_2d();
-
+int main() {
+	Godunov_Kolgan_solver_2D();
 	return 0;
 }
