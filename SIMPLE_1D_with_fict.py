@@ -16,7 +16,7 @@ def Boundary(P, u, uleft, pright):
 def SIMPLE():
     xstart = 0
     xend = 1
-    N = 10
+    N = 12
     dx = (xend - xstart) / N
 
     rho0 = 1
@@ -41,14 +41,13 @@ def SIMPLE():
     for t in range(1):
         iter = 0
         flag = True
-        while (flag and iter < 5):
+        while (flag):
             tmp_u = [0 for _ in range(N)]
             coeffs_dp = [[0 for _ in range(N - 2)] for _ in range(N - 2)]
             res_dp = [0 for _ in range(N - 2)]
             for i in range(1, N - 1):
                 tmp_u[i] = u[i] + tau * (- (P[i + 1] - P[i - 1]) / 2. / dx / rho0 - u[i] * (u[i] - u[i - 1]) / dx + nu * (u[i + 1] - 2 * u[i] + u[i - 1]) / dx / dx)
             tmp_u[0] = uleft
-            print("U_starred:", tmp_u)
 
             for j in range(1, N - 1):
                 if j == 1:
@@ -81,7 +80,8 @@ def SIMPLE():
             iter += 1
             R = max([abs(u[j + 1] - u[j - 1]) / 2 / dx for j in range(1, N - 1)])
             print("Невязка: ", R)
-            print("Правая часть давления:", res_dp)
+            #print("U_starred:", tmp_u)
+            #print("Правая часть давления:", res_dp)
             print("U:", u)
             print()
             if R < prec:
