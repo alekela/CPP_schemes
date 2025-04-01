@@ -11,15 +11,15 @@ typedef std::vector<std::vector<double>> mtrx;
 
 struct Params
 {
-	double CFL;					// число Куранта
-	double gamma;				// показатель адиабаты
-	double dx, dy;				// шаг по пространству
-	int scheme_type;			// тип расчетной схемы: Годунов или Годунов-Колган или Годунов-Колган-Родионов
-	double Lx, Ly;				// размер расчетной области
-	double T;					// период расчета
-	int Nx, Ny;					// число шагов
-	double Quser;				// максимальный скачок давлений
-	int fict;					// число фиктивных шагов
+	double CFL;
+	double gamma;
+	double dx, dy;
+	int scheme_type;
+	double Lx, Ly;
+	double T;
+	int Nx, Ny;
+	double Quser;	
+	int fict;			
 
 	Params()
 	{
@@ -120,7 +120,7 @@ void boundary_cond_y(double p, double vx, double vy, double rho, double& pb, dou
 		vyb = -vy;
 		rhob = rho;
 	}
-	// free flux, пока другого не придумали
+	// free flux, пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
 	else
 	{
 		pb = p;
@@ -153,15 +153,15 @@ void init_krujok(int Nx, int Ny, double gamma, vec xc, vec yc, mtrx& p, mtrx& vx
 
 	// toro test 1
 
-	p1 = 1.0; // атмосферное давление
+	p1 = 1.0; // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
 	vx1 = 0.75;
 	vy1 = 0.;
-	rho1 = 1.0; // плотность воздуха
+	rho1 = 1.0; // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ
 
-	p2 = 1.0; // атмосферное давление
+	p2 = 1.0; // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
 	vx2 = 0.;
 	vy2 = 0.;
-	rho2 = 0.125; // плотность воздуха
+	rho2 = 0.125; // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ
 
 	for (int i = 0; i < Nx; i++) {
 		for (int j = 0; j < Ny; j++) {
@@ -470,7 +470,7 @@ void Riemann_solver(double gamma, double Quser, double PL, double DL, double UL,
 	double PM, UM; // pressure and velocity on contact
 	double S = 0.;
 
-	// Проверка входных данных
+	// пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ
 	/*if (DL <= 0.0 || DR <= 0.0 || PL <= 0.0 || PR <= 0.0) {
 		std::cerr << "Invalid input to Riemann solver" << std::endl;
 		exit(1);
@@ -571,7 +571,7 @@ void GK_2d()
 {
 	Params* params = new Params(100, 40, 1, 0.15, 1.0, 1.0, 1., 1.4, 2.0);
 
-	// пересмотреть где какие циферки (+- fict и сколько) задавать
+	// пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ (+- fict пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ) пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
 
 	vec xc(params->Nx);
 	vec x(params->Nx + 1);
@@ -615,9 +615,9 @@ void GK_2d()
 		{
 			for (int j = 0; j < params->Ny; j++)
 			{
-				//		расчет вдоль х
+				//		пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅ
 				// 
-				//		поток через левую грань ячейки	
+				//		пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ	
 				// 
 
 				if (i == 0)
@@ -681,7 +681,7 @@ void GK_2d()
 				}
 				Godunov_method_x(params->gamma, params->Quser, ml, impxl, impyl, el, mr, impxr, impyr, er, FmL, FimpxL, FimpyL, FeL);
 
-				//		поток через правую грань ячейки
+				//		пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ
 				if (i == params->Nx - 1)
 				{
 					boundary_cond_x(p[params->Nx - 1][j], vx[params->Nx - 1][j], vy[params->Nx - 1][j], rho[params->Nx - 1][j], pb, vxb, vyb, rhob, bound_right);
@@ -749,9 +749,9 @@ void GK_2d()
 				impy_next[i][j] = impy[i][j] - dt * (FimpyR - FimpyL) / params->dx;
 				e_next[i][j] = e[i][j] - dt * (FeR - FeL) / params->dx;
 
-				//		расчёт вдоль y
+				//		пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ y
 				// 
-				//		поток через нижнюю грань
+				//		пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ
 				//
 				if (j == 0)
 				{
@@ -814,7 +814,7 @@ void GK_2d()
 				}
 				Godunov_method_y(params->gamma, params->Quser, ml, impxl, impyl, el, mr, impxr, impyr, er, FmL, FimpxL, FimpyL, FeL);
 
-				//		поток через верхнюю грань ячейки
+				//		пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ
 				if (j == params->Ny - 1)
 				{
 					boundary_cond_y(p[i][params->Ny - 1], vx[i][params->Ny - 1], vy[i][params->Ny - 1], rho[i][params->Ny - 1], pb, vxb, vyb, rhob, bound_up);
