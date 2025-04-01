@@ -67,24 +67,21 @@ void writeCSV(std::string filename, int iter, vec1d x, vec1d y, vec2d ux, vec2d 
 
 
 // from conservative
-void convert_from_conservative(double gamma, double& p, double& vx, double& vy, double& rho, double& m, double& impx, double& impy, double& rhoe)
-{
+void cons_to_noncons(double gamma, double& p, double& vx, double& vy, double& rho, double& m, double& impx, double& impy, double& rhoe) {
 	p = (gamma - 1.0) * (rhoe - 0.5 * (pow(impx, 2.0) + pow(impy, 2.0)) * m);
 	vx = impx / m;
 	vy = impy / m;
 	rho = m;
 }
 // to conservative
-void convert_to_conservative(double gamma, double& p, double& vx, double& vy, double& rho, double& m, double& impx, double& impy, double& rhoe)
-{
+void noncons_to_cons(double gamma, double& p, double& vx, double& vy, double& rho, double& m, double& impx, double& impy, double& rhoe) {
 	m = rho;
 	impx = rho * vx;
 	rhoe = 0.5 * rho * (pow(vx, 2.0) + pow(vy, 2.0)) + p / (gamma - 1.0);
 }
 
 
-void boundary_cond_x(double p, double vx, double vy, double rho, double& pb, double& vxb, double& vyb, double& rhob, int mode)
-{
+void Boundary_x(double p, double vx, double vy, double rho, double& pb, double& vxb, double& vyb, double& rhob, int mode) {
 	// wall
 	if (mode == 0)
 	{
@@ -93,7 +90,6 @@ void boundary_cond_x(double p, double vx, double vy, double rho, double& pb, dou
 		vyb = vy;
 		rhob = rho;
 	}
-
 	// free flux
 	else
 	{
@@ -102,11 +98,9 @@ void boundary_cond_x(double p, double vx, double vy, double rho, double& pb, dou
 		vyb = vy;
 		rhob = rho;
 	}
-
 }
 
-void boundary_cond_y(double p, double vx, double vy, double rho, double& pb, double& vxb, double& vyb, double& rhob, int mode)
-{
+void Boundary_y(double p, double vx, double vy, double rho, double& pb, double& vxb, double& vyb, double& rhob, int mode) {
 	// wall
 	if (mode == 0)
 	{
@@ -115,7 +109,7 @@ void boundary_cond_y(double p, double vx, double vy, double rho, double& pb, dou
 		vyb = -vy;
 		rhob = rho;
 	}
-	// free flux, ���� ������� �� ���������
+	// free flux
 	else
 	{
 		pb = p;
@@ -141,6 +135,7 @@ void grid(InitialState IS, vec1d& x, vec1d& y, vec1d& xc, vec1d& yc) {
 		yc[i] = 0.5 * (y[i] + y[i + 1]);
 	}
 }
+
 
 void init_krujok(int Nx, int Ny, double gamma, vec1d xc, vec1d yc, vec2d& p, vec2d& vx, vec2d& vy, vec2d& rho, vec2d& m, vec2d& impx, vec2d& impy, vec2d& rhoe) {
 	double R = 0.1;
@@ -174,7 +169,7 @@ void init_krujok(int Nx, int Ny, double gamma, vec1d xc, vec1d yc, vec2d& p, vec
 				vy[i][j] = vy2;
 				rho[i][j] = rho2;
 			}
-			convert_to_conservative(gamma, p[i][j], vx[i][j], vy[i][j], rho[i][j], m[i][j], impx[i][j], impy[i][j], rhoe[i][j]);
+			noncons_to_cons(gamma, p[i][j], vx[i][j], vy[i][j], rho[i][j], m[i][j], impx[i][j], impy[i][j], rhoe[i][j]);
 		}
 	}
 }
@@ -194,12 +189,6 @@ double get_dt(InitialState IS, vec2d p, vec2d rho, vec2d vx, vec2d vy, vec1d x, 
 	}
 	return dt;
 }
-
-/*
-
-
-
-*/
 
 // minmod functions: 0 - Kolgan,1972; 1 - Kolgan,1975; 2 (or another...) - Osher,1984
 double minmod(double a, double b, int func) // func - type of minmod we use
@@ -465,7 +454,6 @@ void Riemann_solver(double gamma, double Quser, double PL, double DL, double UL,
 	double PM, UM; // pressure and velocity on contact
 	double S = 0.;
 
-	// �������� ������� ������
 	/*if (DL <= 0.0 || DR <= 0.0 || PL <= 0.0 || PR <= 0.0) {
 		std::cerr << "Invalid input to Riemann solver" << std::endl;
 		exit(1);
@@ -493,17 +481,17 @@ void Riemann_solver(double gamma, double Quser, double PL, double DL, double UL,
 void Godunov_flux_x(double gamma, double p, double vx, double vy, double rho, double& Fm, double& Fimpx, double& Fimpy, double& Fe) {
 	double m, impx, impy, rhoe;
 	//convert_to_conservative(double gamma, double& p, double& vx, double& vy, double& rho, double& m, double& impx, double& impy, double& rhoe)
-	convert_to_conservative(gamma, p, vx, vy, rho, m, impx, impy, rhoe);
+	noncons_to_cons(gamma, p, vx, vy, rho, m, impx, impy, rhoe);
 	Fm = rho * vx;
 	Fimpx = Fm * vx + p;
 	Fimpy = Fm * vy;
 	Fe = (p + rhoe) * vx;
 }
 
+
 void Godunov_flux_y(double gamma, double p, double vx, double vy, double rho, double& Fm, double& Fimpx, double& Fimpy, double& Fe) {
 	double m, impx, impy, rhoe;
-	//convert_to_conservative(double gamma, double& p, double& vx, double& vy, double& rho, double& m, double& impx, double& impy, double& rhoe)
-	convert_to_conservative(gamma, p, vx, vy, rho, m, impx, impy, rhoe);
+	noncons_to_cons(gamma, p, vx, vy, rho, m, impx, impy, rhoe);
 	Fm = rho * vy;
 	Fimpx = Fm * vx;
 	Fimpy = Fm * vy + p;
@@ -517,14 +505,8 @@ void Godunov_method_x(double gamma, double Quser, double ml, double impxl, doubl
 	double pl, vxl, vyl, rhol;
 	double pr, vxr, vyr, rhor;
 
-	//convert_to_conservative(gamma, p, vx, vy, rho, m, impx, impy, rhoe);
-
-	convert_from_conservative(gamma, pl, vxl, vyl, rhol, ml, impxl, impyl, el);
-	convert_from_conservative(gamma, pr, vxr, vyr, rhor, mr, impxr, impyr, er);
-	/*
-	void Riemann_solver(double gamma, double Quser, double PL, double DL, double UL, double PR, double DR, double UR,
-	double& D, double& U, double& P)
-	*/
+	cons_to_noncons(gamma, pl, vxl, vyl, rhol, ml, impxl, impyl, el);
+	cons_to_noncons(gamma, pr, vxr, vyr, rhor, mr, impxr, impyr, er);
 	Riemann_solver(gamma, Quser, pl, rhol, vxl, pr, rhor, vxr, rho, vx, p);
 
 	if (vx >= 0)
@@ -544,8 +526,8 @@ void Godunov_method_y(double gamma, double Quser, double md, double impxd, doubl
 
 	//convert_to_conservative(gamma, p, vx, vy, rho, m, impx, impy, rhoe);
 
-	convert_from_conservative(gamma, pd, vxd, vyd, rhod, md, impxd, impyd, ed);
-	convert_from_conservative(gamma, pu, vxu, vyu, rhou, mu, impxu, impyu, eu);
+	cons_to_noncons(gamma, pd, vxd, vyd, rhod, md, impxd, impyd, ed);
+	cons_to_noncons(gamma, pu, vxu, vyu, rhou, mu, impxu, impyu, eu);
 	/*
 	void Riemann_solver(double gamma, double Quser, double PL, double DL, double UL, double PR, double DR, double UR,
 	double& D, double& U, double& P)
@@ -595,10 +577,18 @@ void GK_2d() {
 
 	writeCSV(filename, iter, xc, yc, ux, uy, P, rho, t_start, IS.Nx, IS.Ny, IS.fict);
 
-	while (t_start < IS.t_end && iter < max_Nt)
-	{
-
-		tau = get_dt(IS, P, rho, ux, uy, x, y);
+	while (t_start < IS.t_end && iter < max_Nt) {
+		tau = 10.0e6;
+		double c, temp;
+		for (int i = IS.fict; i < IS.Nx - IS.fict; ++i) {
+			for (int j = IS.fict; j < IS.Ny - IS.fict; ++j) {
+				c = sqrt(IS.gamma * P[i][j] / rho[i][j]);
+				temp = std::min(abs(IS.CFL * (x[i + 1] - x[i]) / (abs(ux[i][j]) + c)), abs(IS.CFL * (y[j + 1] - y[j]) / (abs(uy[i][j]) + c)));
+				if (temp < tau) {
+					tau = temp;
+				}
+			}
+		}
 
 		//boundary_cond_x(double p, double vxb, double vyb, double rhob, double& p, double& vx, double& vy, double& rho, int mode);
 
@@ -608,8 +598,8 @@ void GK_2d() {
 
 				if (i == 0)
 				{
-					boundary_cond_x(P[0][j], ux[0][j], uy[0][j], rho[0][j], pb, vxb, vyb, rhob, bound_left);
-					convert_to_conservative(IS.gamma, pb, vxb, vyb, rhob, mb, impxb, impyb, eb);
+					Boundary_x(P[0][j], ux[0][j], uy[0][j], rho[0][j], pb, vxb, vyb, rhob, bound_left);
+					noncons_to_cons(IS.gamma, pb, vxb, vyb, rhob, mb, impxb, impyb, eb);
 					ml = mb;
 					impxl = impxb;
 					impyl = impyb;
@@ -623,8 +613,8 @@ void GK_2d() {
 
 				else if (i == 1)
 				{
-					boundary_cond_x(P[0][j], ux[0][j], uy[0][j], rho[0][j], pb, vxb, vyb, rhob, bound_left);
-					convert_to_conservative(IS.gamma, pb, vxb, vyb, rhob, mb, impxb, impyb, eb);
+					Boundary_x(P[0][j], ux[0][j], uy[0][j], rho[0][j], pb, vxb, vyb, rhob, bound_left);
+					noncons_to_cons(IS.gamma, pb, vxb, vyb, rhob, mb, impxb, impyb, eb);
 
 					ml = mass[0][j] + 0.5 * minmod(mass[0][j] - mb, mass[1][j] - mass[0][j], minmod_type);
 					impxl = Imp_x[0][j] + 0.5 * minmod(Imp_x[0][j] - impxb, Imp_x[1][j] - Imp_x[0][j], minmod_type);
@@ -639,8 +629,8 @@ void GK_2d() {
 
 				else if (i == IS.Nx - 1)
 				{
-					boundary_cond_x(P[IS.Nx - 1][j], ux[IS.Nx - 1][j], uy[IS.Nx - 1][j], rho[IS.Nx - 1][j], pb, vxb, vyb, rhob, bound_right);
-					convert_to_conservative(IS.gamma, pb, vxb, vyb, rhob, mb, impxb, impyb, eb);
+					Boundary_x(P[IS.Nx - 1][j], ux[IS.Nx - 1][j], uy[IS.Nx - 1][j], rho[IS.Nx - 1][j], pb, vxb, vyb, rhob, bound_right);
+					noncons_to_cons(IS.gamma, pb, vxb, vyb, rhob, mb, impxb, impyb, eb);
 
 					ml = mass[i - 1][j] + 0.5 * minmod(mass[i - 1][j] - mass[i - 2][j], mass[i][j] - mass[i - 1][j], minmod_type);
 					impxl = Imp_x[i - 1][j] + 0.5 * minmod(Imp_x[i - 1][j] - Imp_x[i - 2][j], Imp_x[i][j] - Imp_x[i - 1][j], minmod_type);
@@ -670,8 +660,8 @@ void GK_2d() {
 				//		����� ����� ������ ����� ������
 				if (i == IS.Nx - 1)
 				{
-					boundary_cond_x(P[IS.Nx - 1][j], ux[IS.Nx - 1][j], uy[IS.Nx - 1][j], rho[IS.Nx - 1][j], pb, vxb, vyb, rhob, bound_right);
-					convert_to_conservative(IS.gamma, pb, vxb, vyb, rhob, mb, impxb, impyb, eb);
+					Boundary_x(P[IS.Nx - 1][j], ux[IS.Nx - 1][j], uy[IS.Nx - 1][j], rho[IS.Nx - 1][j], pb, vxb, vyb, rhob, bound_right);
+					noncons_to_cons(IS.gamma, pb, vxb, vyb, rhob, mb, impxb, impyb, eb);
 
 					ml = mass[i][j] + 0.5 * minmod(mass[i][j] - mass[i - 1][j], mb - mass[i][j], minmod_type);
 					impxl = Imp_x[i][j] + 0.5 * minmod(Imp_x[i][j] - Imp_x[i - 1][j], impxb - Imp_x[i][j], minmod_type);
@@ -686,8 +676,8 @@ void GK_2d() {
 				}
 				else if (i == IS.Nx - 2)
 				{
-					boundary_cond_x(P[IS.Nx - 1][j], ux[IS.Nx - 1][j], uy[IS.Nx - 1][j], rho[IS.Nx - 1][j], pb, vxb, vyb, rhob, bound_right);
-					convert_to_conservative(IS.gamma, pb, vxb, vyb, rhob, mb, impxb, impyb, eb);
+					Boundary_x(P[IS.Nx - 1][j], ux[IS.Nx - 1][j], uy[IS.Nx - 1][j], rho[IS.Nx - 1][j], pb, vxb, vyb, rhob, bound_right);
+					noncons_to_cons(IS.gamma, pb, vxb, vyb, rhob, mb, impxb, impyb, eb);
 
 					ml = mass[i][j] + 0.5 * minmod(mass[i][j] - mass[i - 1][j], mass[i + 1][j] - mass[i][j], minmod_type);
 					impxl = Imp_x[i][j] + 0.5 * minmod(Imp_x[i][j] - Imp_x[i - 1][j], Imp_x[i + 1][j] - Imp_x[i][j], minmod_type);
@@ -701,8 +691,8 @@ void GK_2d() {
 				}
 				else if (i == 0)
 				{
-					boundary_cond_x(P[0][j], ux[0][j], uy[0][j], rho[0][j], pb, vxb, vyb, rhob, bound_left);
-					convert_to_conservative(IS.gamma, pb, vxb, vyb, rhob, mb, impxb, impyb, eb);
+					Boundary_x(P[0][j], ux[0][j], uy[0][j], rho[0][j], pb, vxb, vyb, rhob, bound_left);
+					noncons_to_cons(IS.gamma, pb, vxb, vyb, rhob, mb, impxb, impyb, eb);
 
 					ml = mass[i][j] + 0.5 * minmod(mass[i][j] - mb, mass[i + 1][j] - mass[i][j], minmod_type);
 					impxl = Imp_x[i][j] + 0.5 * minmod(Imp_x[i][j] - impxb, Imp_x[i + 1][j] - Imp_x[i][j], minmod_type);
@@ -741,8 +731,8 @@ void GK_2d() {
 				//
 				if (j == 0)
 				{
-					boundary_cond_x(P[i][0], ux[i][0], uy[i][0], rho[i][0], pb, vxb, vyb, rhob, bound_down);
-					convert_to_conservative(IS.gamma, pb, vxb, vyb, rhob, mb, impxb, impyb, eb);
+					Boundary_x(P[i][0], ux[i][0], uy[i][0], rho[i][0], pb, vxb, vyb, rhob, bound_down);
+					noncons_to_cons(IS.gamma, pb, vxb, vyb, rhob, mb, impxb, impyb, eb);
 					ml = mb;
 					impxl = impxb;
 					impyl = impyb;
@@ -756,8 +746,8 @@ void GK_2d() {
 
 				else if (j == 1)
 				{
-					boundary_cond_y(P[i][0], ux[i][0], uy[i][0], rho[i][0], pb, vxb, vyb, rhob, bound_down);
-					convert_to_conservative(IS.gamma, pb, vxb, vyb, rhob, mb, impxb, impyb, eb);
+					Boundary_y(P[i][0], ux[i][0], uy[i][0], rho[i][0], pb, vxb, vyb, rhob, bound_down);
+					noncons_to_cons(IS.gamma, pb, vxb, vyb, rhob, mb, impxb, impyb, eb);
 
 					mr = mass[i][0] + 0.5 * minmod(mass[i][0] - mb, mass[i][1] - mass[i][0], minmod_type);
 					impxr = Imp_x[i][0] + 0.5 * minmod(Imp_x[i][0] - impxb, Imp_x[i][1] - Imp_x[i][0], minmod_type);
@@ -772,8 +762,8 @@ void GK_2d() {
 
 				else if (j == IS.Ny - 1)
 				{
-					boundary_cond_y(P[i][IS.Ny - 1], ux[i][IS.Ny - 1], uy[i][IS.Ny - 1], rho[i][IS.Ny - 1], pb, vxb, vyb, rhob, bound_up);
-					convert_to_conservative(IS.gamma, pb, vxb, vyb, rhob, mb, impxb, impyb, eb);
+					Boundary_y(P[i][IS.Ny - 1], ux[i][IS.Ny - 1], uy[i][IS.Ny - 1], rho[i][IS.Ny - 1], pb, vxb, vyb, rhob, bound_up);
+					noncons_to_cons(IS.gamma, pb, vxb, vyb, rhob, mb, impxb, impyb, eb);
 
 					ml = mass[i][j - 1] + 0.5 * minmod(mass[i][j - 1] - mass[i][j - 2], mass[i][j] - mass[i][j - 1], minmod_type);
 					impxl = Imp_x[i][j - 1] + 0.5 * minmod(Imp_x[i][j - 1] - Imp_x[i][j - 2], Imp_x[i][j] - Imp_x[i][j - 1], minmod_type);
@@ -803,8 +793,8 @@ void GK_2d() {
 				//		����� ����� ������� ����� ������
 				if (j == IS.Ny - 1)
 				{
-					boundary_cond_y(P[i][IS.Ny - 1], ux[i][IS.Ny - 1], uy[i][IS.Ny - 1], rho[i][IS.Ny - 1], pb, vxb, vyb, rhob, bound_up);
-					convert_to_conservative(IS.gamma, pb, vxb, vyb, rhob, mb, impxb, impyb, eb);
+					Boundary_y(P[i][IS.Ny - 1], ux[i][IS.Ny - 1], uy[i][IS.Ny - 1], rho[i][IS.Ny - 1], pb, vxb, vyb, rhob, bound_up);
+					noncons_to_cons(IS.gamma, pb, vxb, vyb, rhob, mb, impxb, impyb, eb);
 
 					ml = mass[i][j] + 0.5 * minmod(mass[i][j] - mass[i][j - 1], mb - mass[i][j], minmod_type);
 					impxl = Imp_x[i][j] + 0.5 * minmod(Imp_x[i][j] - Imp_x[i][j - 1], impxb - Imp_x[i][j], minmod_type);
@@ -818,8 +808,8 @@ void GK_2d() {
 				}
 				else if (j == IS.Ny - 2)
 				{
-					boundary_cond_y(P[i][IS.Ny - 1], ux[i][IS.Ny - 1], uy[i][IS.Ny - 1], rho[i][IS.Ny - 1], pb, vxb, vyb, rhob, bound_up);
-					convert_to_conservative(IS.gamma, pb, vxb, vyb, rhob, mb, impxb, impyb, eb);
+					Boundary_y(P[i][IS.Ny - 1], ux[i][IS.Ny - 1], uy[i][IS.Ny - 1], rho[i][IS.Ny - 1], pb, vxb, vyb, rhob, bound_up);
+					noncons_to_cons(IS.gamma, pb, vxb, vyb, rhob, mb, impxb, impyb, eb);
 
 					ml = mass[i][j] + 0.5 * minmod(mass[i][j] - mass[i][j - 1], mass[i][j + 1] - mass[i][j], minmod_type);
 					impxl = Imp_x[i][j] + 0.5 * minmod(Imp_x[i][j] - Imp_x[i][j - 1], Imp_x[i][j + 1] - Imp_x[i][j], minmod_type);
@@ -833,8 +823,8 @@ void GK_2d() {
 				}
 				else if (j == 0)
 				{
-					boundary_cond_y(P[i][0], ux[i][0], uy[i][0], rho[i][0], pb, vxb, vyb, rhob, bound_down);
-					convert_to_conservative(IS.gamma, pb, vxb, vyb, rhob, mb, impxb, impyb, eb);
+					Boundary_y(P[i][0], ux[i][0], uy[i][0], rho[i][0], pb, vxb, vyb, rhob, bound_down);
+					noncons_to_cons(IS.gamma, pb, vxb, vyb, rhob, mb, impxb, impyb, eb);
 
 					ml = mass[i][j] + 0.5 * minmod(mass[i][j] - mb, mass[i][j + 1] - mass[i][j], minmod_type);
 					impxl = Imp_x[i][j] + 0.5 * minmod(Imp_x[i][j] - impxb, Imp_x[i][j + 1] - Imp_x[i][j], minmod_type);
@@ -880,7 +870,7 @@ void GK_2d() {
 				Imp_y[i][j] = new_Imp_y[i][j];
 				rhoe[i][j] = new_rhoe[i][j];
 
-				convert_from_conservative(IS.gamma, P[i][j], ux[i][j], uy[i][j], rho[i][j], mass[i][j], Imp_x[i][j], Imp_y[i][j], rhoe[i][j]);
+				cons_to_noncons(IS.gamma, P[i][j], ux[i][j], uy[i][j], rho[i][j], mass[i][j], Imp_x[i][j], Imp_y[i][j], rhoe[i][j]);
 			}
 		}
 		//data_to_file(int Nx, int Ny, double time, vec x, vec y, mtrx p, mtrx vx, mtrx vy, mtrx rho)
