@@ -34,7 +34,7 @@ struct InitialState {
 	double gamma = 1.4;
 	double Q = 2;
 
-	double u_left, u_right, P_left, P_right, rho_left, rho_right;
+    double u_left, u_right, P_left, P_right, rho_left, rho_right;
 };
 
 
@@ -546,8 +546,8 @@ void Godunov_Kolgan_solver_2D() {
 	while (t_start < IS.t_end && iter < max_Nt) {
 		tau = 1.e6;
 		double c, temp;
-		for (int i = IS.fict; i < IS.Ny - IS.fict; ++i) {
-			for (int j = IS.fict; j < IS.Nx - IS.fict; ++j) {
+		for (int i = IS.fict; i < IS.Nx - IS.fict; ++i) {
+			for (int j = IS.fict; j < IS.Ny - IS.fict; ++j) {
 				c = sqrt(IS.gamma * P[i][j] / rho[i][j]);
 				temp = std::min(abs(IS.CFL * (x[i + 1] - x[i]) / (abs(ux[i][j]) + c)), abs(IS.CFL * (y[j + 1] - y[j]) / (abs(uy[i][j]) + c)));
 				if (temp < tau) {
@@ -556,8 +556,8 @@ void Godunov_Kolgan_solver_2D() {
 			}
 		}
 
-		for (int i = 0; i < IS.Ny; i++) {
-			for (int j = 0; j < IS.Nx; j++) {
+		for (int i = 0; i < IS.Nx; i++) {
+			for (int j = 0; j < IS.Ny; j++) {
 				if (i == 0) {
 					Boundary_x(P[0][j], ux[0][j], uy[0][j], rho[0][j], pb, vxb, vyb, rhob, bound_left);
 					noncons_to_cons(IS.gamma, pb, vxb, vyb, rhob, mb, impxb, impyb, eb);
@@ -801,8 +801,8 @@ void Godunov_Kolgan_solver_2D() {
 		}
 
 		// update parameters
-		for (int i = 0; i < IS.Ny; ++i) {
-			for (int j = 0; j < IS.Nx; ++j) {
+		for (int i = 0; i < IS.Nx; ++i) {
+			for (int j = 0; j < IS.Ny; ++j) {
 				mass[i][j] = new_mass[i][j];
 				Imp_x[i][j] = new_Imp_x[i][j];
 				Imp_y[i][j] = new_Imp_y[i][j];
