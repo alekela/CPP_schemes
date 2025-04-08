@@ -4,10 +4,16 @@
 #include <vector>
 #include <map>
 #include <cmath>
+#include <stdio.h>
 #include <stdlib.h>
 #include <mpi.h>
+#include <filesystem>
+#include <fstream>
+#include <sstream>
+#include <sstream>
 
 
+namespace fs = std::filesystem;
 typedef std::vector<double> vec1d;
 typedef std::vector<std::vector<double>> vec2d;
 
@@ -15,7 +21,7 @@ typedef std::vector<std::vector<double>> vec2d;
 struct InitialState {
 	int nx = 5;
 	int ny = 5;
-	int fict = 1;
+	int fict = 2;
 	int Nx = nx + 2 * fict;
 	int Ny = ny + 2 * fict;
 
@@ -34,36 +40,9 @@ struct InitialState {
 	double gamma = 1.4;
 	double Q = 2;
 
-    double u_left, u_right, P_left, P_right, rho_left, rho_right;
+    double ux_left, ux_right, uy_left, uy_right, P_left, P_right, rho_left, rho_right;
+	double ux_down, ux_up, uy_down, uy_up, P_down, P_up, rho_down, rho_up;
 };
-
-
-void writeCSV(std::string filename, int iter, vec1d x, vec1d y, vec2d ux, vec2d uy, vec2d P, vec2d rho, double t, int Nx, int Ny, int fict) {
-	std::string name = "CSVs\\";
-	name += filename;
-	name += "\\Iter=";
-	name += std::to_string(iter);
-	name += ".csv";
-
-	std::ofstream outfile(name);
-	std::string tmp;
-	tmp = "Time,X,Y,Rho,P,Ux,Uy\n";
-	outfile << tmp;
-	for (int i = fict; i < Ny - fict; i++) {
-		for (int j = fict; j < Nx - fict; j++) {
-			tmp = "";
-			tmp += std::to_string(t) + ',';
-			tmp += std::to_string(x[j]) + ',';
-			tmp += std::to_string(y[i]) + ',';
-			tmp += std::to_string(rho[i][j]) + ',';
-			tmp += std::to_string(P[i][j]) + ',';
-			tmp += std::to_string(ux[i][j]) + ',';
-			tmp += std::to_string(uy[i][j]) + '\n';
-			outfile << tmp;
-		}
-	}
-	outfile.close();
-}
 
 
 // from conservative
@@ -105,11 +84,11 @@ void initial_state(int Nx, int Ny, double gamma, vec1d xc, vec1d yc, vec2d& p, v
 	// toro test 1
 
 	p1 = 1.0;
-	vx1 = 0.75;
+	vx1 = 0.;
 	vy1 = 0.;
 	rho1 = 1.0;
 
-	p2 = 1.0;
+	p2 = 0.1;
 	vx2 = 0.;
 	vy2 = 0.;
 	rho2 = 0.125;
@@ -218,7 +197,7 @@ void Newton_find_P(double gamma, double Quser, double PL, double DL, double UL, 
 
 
 //  to compute the solution for pressure and velocity on contact
-void Rieman_solver(double gamma, double Quser, double PL, double DL, double UL, double PR, double DR, double UR, double& UM, double& PM) {
+void Riemann_solver(double gamma, double Quser, double PL, double DL, double UL, double PR, double DR, double UR, double& UM, double& PM) {
 	int NRITER = 30;
 	double CHANGE = 1e6, FL, FLD, FR, FRD, POLD, TOLPRE = 1.0e-6, UDIFF;
 	double CL = sqrt(gamma * PL / DL);
@@ -391,7 +370,7 @@ void Riemann_solver(double gamma, double Quser, double PL, double DL, double UL,
 		std::cout << "Vacuum is generated" << std::endl << "Program stopped" << std::endl;
 		exit(228);
 	}
-	Rieman_solver(gamma, Quser, PL, DL, UL, PR, DR, UR, UM, PM);
+	Riemann_solver(gamma, Quser, PL, DL, UL, PR, DR, UR, UM, PM);
 
 	// found results
 	find_in_which_part(gamma, PL, DL, UL, PR, DR, UR, UM, PM, 0., D, U, P);
@@ -503,8 +482,75 @@ void Boundary_y(double p, double vx, double vy, double rho, double& pb, double& 
 
 void Boundary(InitialState IS, vec2d& P, vec2d& ux, vec2d& uy, vec2d& rho, int b_l, int b_u, int b_r, int b_d) {
 	if (b_l > -1) {
-		if (b_l == 0) {
-
+		for (int i = IS.fict; i < IS.Ny - IS.fict; i++) {
+			for (int j = 0; j < IS.fict; j++) {
+				if (b_l == 0) {
+					P[i][j] = IS.P_left;
+					ux[i][j] = IS.ux_left;
+					uy[i][j] = IS.uy_left;
+					rho[i][j] = IS.rho_left;
+				}
+				else if (b_l == 1) {
+					P[i][j] = P[i][IS.fict];
+					ux[i][j] = ux[i][IS.fict];
+					uy[i][j] = uy[i][IS.fict];
+					rho[i][j] = rho[i][IS.fict];
+				}
+			}
+		}
+	}
+	if (b_u > -1) {
+		for (int i = IS.Ny - IS.fict; i < IS.Ny; i++) {
+			for (int j = IS.fict; j < IS.Nx - IS.fict; j++) {
+				if (b_u == 0) {
+					P[i][j] = IS.P_up;
+					ux[i][j] = IS.ux_up;
+					uy[i][j] = IS.uy_up;
+					rho[i][j] = IS.rho_up;
+				}
+				else if (b_u == 1) {
+					P[i][j] = P[IS.Ny - IS.fict - 1][j];
+					ux[i][j] = ux[IS.Ny - IS.fict - 1][j];
+					uy[i][j] = uy[IS.Ny - IS.fict - 1][j];
+					rho[i][j] = rho[IS.Ny - IS.fict - 1][j];
+				}
+			}
+		}
+	}
+	if (b_r > -1) {
+		for (int i = IS.fict; i < IS.Ny - IS.fict; i++) {
+			for (int j = IS.Nx - IS.fict; j < IS.Nx; j++) {
+				if (b_r == 0) {
+					P[i][j] = IS.P_right;
+					ux[i][j] = IS.ux_right;
+					uy[i][j] = IS.uy_right;
+					rho[i][j] = IS.rho_right;
+				}
+				else if (b_r == 1) {
+					P[i][j] = P[i][IS.Nx - IS.fict - 1];
+					ux[i][j] = ux[i][IS.Nx - IS.fict - 1];
+					uy[i][j] = uy[i][IS.Nx - IS.fict - 1];
+					rho[i][j] = rho[i][IS.Nx - IS.fict - 1];
+				}
+			}
+		}
+	}
+	if (b_d > -1) {
+		for (int i = 0; i < IS.fict; i++) {
+			for (int j = IS.fict; j < IS.Nx - IS.fict; j++) {
+				if (b_d == 0) {
+					P[i][j] = IS.P_down;
+					ux[i][j] = IS.ux_down;
+					uy[i][j] = IS.uy_down;
+					rho[i][j] = IS.rho_down;
+				}
+				else if (b_d == 1) {
+					P[i][j] = P[IS.fict][j];
+					ux[i][j] = ux[IS.fict][j];
+					uy[i][j] = uy[IS.fict][j];
+					rho[i][j] = rho[IS.fict][j];
+				}
+			}
 		}
 	}
 }
@@ -545,120 +591,32 @@ void Godunov_Kolgan_solver_2D_one_step(InitialState IS, double* t_start, vec1d& 
 
 	Boundary(IS, P, ux, uy, rho, b_l, b_u, b_r, b_d);
 
-	for (int i = IS.fict; i < IS.Ny - IS.fict; i++) {
-		for (int j = IS.fict; j < IS.Nx - IS.fict; j++) {
-			if (i == 0 && neighbors[3] == -4) {
-				Boundary_y(P[0][j], ux[0][j], uy[0][j], rho[0][j], pb, vxb, vyb, rhob, bound_down);
-				noncons_to_cons(IS.gamma, pb, vxb, vyb, rhob, mb, impxb, impyb, eb);
-				massl = mb;
-				impxl = impxb;
-				impyl = impyb;
-				rhoel = eb;
+	for (int i = IS.fict; i < IS.Ny - IS.fict + 1; i++) {
+		for (int j = IS.fict; j < IS.Nx - IS.fict + 1; j++) {
+			massl = mass[i - 1][j] + 0.5 * minmod(mass[i - 1][j] - mass[i - 2][j], mass[i][j] - mass[i - 1][j], minmod_type);
+			impxl = Imp_x[i - 1][j] + 0.5 * minmod(Imp_x[i - 1][j] - Imp_x[i - 2][j], Imp_x[i][j] - Imp_x[i - 1][j], minmod_type);
+			impyl = Imp_y[i - 1][j] + 0.5 * minmod(Imp_y[i - 1][j] - Imp_y[i - 2][j], Imp_y[i][j] - Imp_y[i - 1][j], minmod_type);
+			rhoel = rhoe[i - 1][j] + 0.5 * minmod(rhoe[i - 1][j] - rhoe[i - 2][j], rhoe[i][j] - rhoe[i - 1][j], minmod_type);
+			
+			massr = mass[i][j] - 0.5 * minmod(mass[i][j] - mass[i - 1][j], mass[i + 1][j] - mass[i][j], minmod_type);
+			impxr = Imp_x[i][j] - 0.5 * minmod(Imp_x[i][j] - Imp_x[i - 1][j], Imp_x[i + 1][j] - Imp_x[i][j], minmod_type);
+			impyr = Imp_y[i][j] - 0.5 * minmod(Imp_y[i][j] - Imp_y[i - 1][j], Imp_y[i + 1][j] - Imp_y[i][j], minmod_type);
+			rhoer = rhoe[i][j] - 0.5 * minmod(rhoe[i][j] - rhoe[i - 1][j], rhoe[i + 1][j] - rhoe[i][j], minmod_type);
 
-				massr = mass[0][j] - 0.5 * minmod(mass[0][j] - mb, mass[1][j] - mass[0][j], minmod_type);
-				impxr = Imp_x[0][j] - 0.5 * minmod(Imp_x[0][j] - impxb, Imp_x[1][j] - Imp_x[0][j], minmod_type);
-				impyr = Imp_y[0][j] - 0.5 * minmod(Imp_y[0][j] - impyb, Imp_y[1][j] - Imp_y[0][j], minmod_type);
-				rhoer = rhoe[0][j] - 0.5 * minmod(rhoe[0][j] - eb, rhoe[1][j] - rhoe[0][j], minmod_type);
-			}
-
-			else if (i == 1 && neighbors[3] == -4) {
-				Boundary_y(P[0][j], ux[0][j], uy[0][j], rho[0][j], pb, vxb, vyb, rhob, bound_down);
-				noncons_to_cons(IS.gamma, pb, vxb, vyb, rhob, mb, impxb, impyb, eb);
-
-				massl = mass[0][j] + 0.5 * minmod(mass[0][j] - mb, mass[1][j] - mass[0][j], minmod_type);
-				impxl = Imp_x[0][j] + 0.5 * minmod(Imp_x[0][j] - impxb, Imp_x[1][j] - Imp_x[0][j], minmod_type);
-				impyl = Imp_y[0][j] + 0.5 * minmod(Imp_y[0][j] - impyb, Imp_y[1][j] - Imp_y[0][j], minmod_type);
-				rhoel = rhoe[0][j] + 0.5 * minmod(rhoe[0][j] - eb, rhoe[1][j] - rhoe[0][j], minmod_type);
-
-				massr = mass[1][j] - 0.5 * minmod(mass[i][j] - mass[i - 1][j], mass[i + 1][j] - mass[i][j], minmod_type);
-				impxr = Imp_x[1][j] - 0.5 * minmod(Imp_x[i][j] - Imp_x[i - 1][j], Imp_x[i + 1][j] - Imp_x[i][j], minmod_type);
-				impyr = Imp_y[1][j] - 0.5 * minmod(Imp_y[i][j] - Imp_y[i - 1][j], Imp_y[i + 1][j] - Imp_y[i][j], minmod_type);
-				rhoer = rhoe[1][j] - 0.5 * minmod(rhoe[i][j] - rhoe[i - 1][j], rhoe[i + 1][j] - rhoe[i][j], minmod_type);
-			}
-
-			else if (i == IS.Ny - 1 && neighbors[1] == -2) {
-				Boundary_y(P[IS.Nx - 1][j], ux[IS.Nx - 1][j], uy[IS.Nx - 1][j], rho[IS.Nx - 1][j], pb, vxb, vyb, rhob, bound_up);
-				noncons_to_cons(IS.gamma, pb, vxb, vyb, rhob, mb, impxb, impyb, eb);
-
-				massl = mass[i - 1][j] + 0.5 * minmod(mass[i - 1][j] - mass[i - 2][j], mass[i][j] - mass[i - 1][j], minmod_type);
-				impxl = Imp_x[i - 1][j] + 0.5 * minmod(Imp_x[i - 1][j] - Imp_x[i - 2][j], Imp_x[i][j] - Imp_x[i - 1][j], minmod_type);
-				impyl = Imp_y[i - 1][j] + 0.5 * minmod(Imp_y[i - 1][j] - Imp_y[i - 2][j], Imp_y[i][j] - Imp_y[i - 1][j], minmod_type);
-				rhoel = rhoe[i - 1][j] + 0.5 * minmod(rhoe[i - 1][j] - rhoe[i - 2][j], rhoe[i][j] - rhoe[i - 1][j], minmod_type);
-
-				massr = mass[i][j] - 0.5 * minmod(mass[i][j] - mass[i - 1][j], mb - mass[i][j], minmod_type);
-				impxr = Imp_x[i][j] - 0.5 * minmod(Imp_x[i][j] - Imp_x[i - 1][j], impxb - Imp_x[i][j], minmod_type);
-				impyr = Imp_y[i][j] - 0.5 * minmod(Imp_y[i][j] - Imp_y[i - 1][j], impyb - Imp_y[i][j], minmod_type);
-				rhoer = rhoe[i][j] - 0.5 * minmod(rhoe[i][j] - rhoe[i - 1][j], eb - rhoe[i][j], minmod_type);
-			}
-
-			else {
-				massl = mass[i - 1][j] + 0.5 * minmod(mass[i - 1][j] - mass[i - 2][j], mass[i][j] - mass[i - 1][j], minmod_type);
-				impxl = Imp_x[i - 1][j] + 0.5 * minmod(Imp_x[i - 1][j] - Imp_x[i - 2][j], Imp_x[i][j] - Imp_x[i - 1][j], minmod_type);
-				impyl = Imp_y[i - 1][j] + 0.5 * minmod(Imp_y[i - 1][j] - Imp_y[i - 2][j], Imp_y[i][j] - Imp_y[i - 1][j], minmod_type);
-				rhoel = rhoe[i - 1][j] + 0.5 * minmod(rhoe[i - 1][j] - rhoe[i - 2][j], rhoe[i][j] - rhoe[i - 1][j], minmod_type);
-
-				massr = mass[i][j] - 0.5 * minmod(mass[i][j] - mass[i - 1][j], mass[i + 1][j] - mass[i][j], minmod_type);
-				impxr = Imp_x[i][j] - 0.5 * minmod(Imp_x[i][j] - Imp_x[i - 1][j], Imp_x[i + 1][j] - Imp_x[i][j], minmod_type);
-				impyr = Imp_y[i][j] - 0.5 * minmod(Imp_y[i][j] - Imp_y[i - 1][j], Imp_y[i + 1][j] - Imp_y[i][j], minmod_type);
-				rhoer = rhoe[i][j] - 0.5 * minmod(rhoe[i][j] - rhoe[i - 1][j], rhoe[i + 1][j] - rhoe[i][j], minmod_type);
-			}
 			Godunov_method_y(IS.gamma, IS.Q, massl, impxl, impyl, rhoel, massr, impxr, impyr, rhoer, FmL, FimpxL, FimpyL, FeL);
 
-			if (i == IS.Ny - 1 && neighbors[1] == -2) {
-				Boundary_y(P[IS.Nx - 1][j], ux[IS.Nx - 1][j], uy[IS.Nx - 1][j], rho[IS.Nx - 1][j], pb, vxb, vyb, rhob, bound_up);
-				noncons_to_cons(IS.gamma, pb, vxb, vyb, rhob, mb, impxb, impyb, eb);
+			/*
+			massl = mass[i][j] + 0.5 * minmod(mass[i][j] - mass[i - 1][j], mass[i + 1][j] - mass[i][j], minmod_type);
+			impxl = Imp_x[i][j] + 0.5 * minmod(Imp_x[i][j] - Imp_x[i - 1][j], Imp_x[i + 1][j] - Imp_x[i][j], minmod_type);
+			impyl = Imp_y[i][j] + 0.5 * minmod(Imp_y[i][j] - Imp_y[i - 1][j], Imp_y[i + 1][j] - Imp_y[i][j], minmod_type);
+			rhoel = rhoe[i][j] + 0.5 * minmod(rhoe[i][j] - rhoe[i - 1][j], rhoe[i + 1][j] - rhoe[i][j], minmod_type);
 
-				massl = mass[i][j] + 0.5 * minmod(mass[i][j] - mass[i - 1][j], mb - mass[i][j], minmod_type);
-				impxl = Imp_x[i][j] + 0.5 * minmod(Imp_x[i][j] - Imp_x[i - 1][j], impxb - Imp_x[i][j], minmod_type);
-				impyl = Imp_y[i][j] + 0.5 * minmod(Imp_y[i][j] - Imp_y[i - 1][j], impyb - Imp_y[i][j], minmod_type);
-				rhoel = rhoe[i][j] + 0.5 * minmod(rhoe[i][j] - rhoe[i - 1][j], eb - rhoe[i][j], minmod_type);
-
-				massr = mb;
-				impxr = impxb;
-				impyr = impyb;
-				rhoer = eb;
-
-			}
-			else if (i == IS.Ny - 2 && neighbors[1] == -2) {
-				Boundary_y(P[IS.Nx - 1][j], ux[IS.Nx - 1][j], uy[IS.Nx - 1][j], rho[IS.Nx - 1][j], pb, vxb, vyb, rhob, bound_up);
-				noncons_to_cons(IS.gamma, pb, vxb, vyb, rhob, mb, impxb, impyb, eb);
-
-				massl = mass[i][j] + 0.5 * minmod(mass[i][j] - mass[i - 1][j], mass[i + 1][j] - mass[i][j], minmod_type);
-				impxl = Imp_x[i][j] + 0.5 * minmod(Imp_x[i][j] - Imp_x[i - 1][j], Imp_x[i + 1][j] - Imp_x[i][j], minmod_type);
-				impyl = Imp_y[i][j] + 0.5 * minmod(Imp_y[i][j] - Imp_y[i - 1][j], Imp_y[i + 1][j] - Imp_y[i][j], minmod_type);
-				rhoel = rhoe[i][j] + 0.5 * minmod(rhoe[i][j] - rhoe[i - 1][j], rhoe[i + 1][j] - rhoe[i][j], minmod_type);
-
-				massr = mass[i + 1][j] - 0.5 * minmod(mass[i + 1][j] - mass[i][j], mb - mass[i + 1][j], minmod_type);
-				impxr = Imp_x[i + 1][j] - 0.5 * minmod(Imp_x[i + 1][j] - Imp_x[i][j], impxb - Imp_x[i + 1][j], minmod_type);
-				impyr = Imp_y[i + 1][j] - 0.5 * minmod(Imp_y[i + 1][j] - Imp_y[i][j], impyb - Imp_y[i + 1][j], minmod_type);
-				rhoer = rhoe[i + 1][j] - 0.5 * minmod(rhoe[i + 1][j] - rhoe[i][j], eb - rhoe[i + 1][j], minmod_type);
-			}
-			else if (i == 0 && neighbors[3] == -4) {
-				Boundary_y(P[0][j], ux[0][j], uy[0][j], rho[0][j], pb, vxb, vyb, rhob, bound_down);
-				noncons_to_cons(IS.gamma, pb, vxb, vyb, rhob, mb, impxb, impyb, eb);
-
-				massl = mass[i][j] + 0.5 * minmod(mass[i][j] - mb, mass[i + 1][j] - mass[i][j], minmod_type);
-				impxl = Imp_x[i][j] + 0.5 * minmod(Imp_x[i][j] - impxb, Imp_x[i + 1][j] - Imp_x[i][j], minmod_type);
-				impyl = Imp_y[i][j] + 0.5 * minmod(Imp_y[i][j] - impyb, Imp_y[i + 1][j] - Imp_y[i][j], minmod_type);
-				rhoel = rhoe[i][j] + 0.5 * minmod(rhoe[i][j] - eb, rhoe[i + 1][j] - rhoe[i][j], minmod_type);
-
-				massr = mass[i + 1][j] - 0.5 * minmod(mass[i + 1][j] - mass[i][j], mass[i + 2][j] - mass[i + 1][j], minmod_type);
-				impxr = Imp_x[i + 1][j] - 0.5 * minmod(Imp_x[i + 1][j] - Imp_x[i][j], Imp_x[i + 2][j] - Imp_x[i + 1][j], minmod_type);
-				impyr = Imp_y[i + 1][j] - 0.5 * minmod(Imp_y[i + 1][j] - Imp_y[i][j], Imp_y[i + 2][j] - Imp_y[i + 1][j], minmod_type);
-				rhoer = rhoe[i + 1][j] - 0.5 * minmod(rhoe[i + 1][j] - rhoe[i][j], rhoe[i + 2][j] - rhoe[i + 1][j], minmod_type);
-			}
-			else {
-				massl = mass[i][j] + 0.5 * minmod(mass[i][j] - mass[i - 1][j], mass[i + 1][j] - mass[i][j], minmod_type);
-				impxl = Imp_x[i][j] + 0.5 * minmod(Imp_x[i][j] - Imp_x[i - 1][j], Imp_x[i + 1][j] - Imp_x[i][j], minmod_type);
-				impyl = Imp_y[i][j] + 0.5 * minmod(Imp_y[i][j] - Imp_y[i - 1][j], Imp_y[i + 1][j] - Imp_y[i][j], minmod_type);
-				rhoel = rhoe[i][j] + 0.5 * minmod(rhoe[i][j] - rhoe[i - 1][j], rhoe[i + 1][j] - rhoe[i][j], minmod_type);
-
-				massr = mass[i + 1][j] - 0.5 * minmod(mass[i + 1][j] - mass[i][j], mass[i + 2][j] - mass[i + 1][j], minmod_type);
-				impxr = Imp_x[i + 1][j] - 0.5 * minmod(Imp_x[i + 1][j] - Imp_x[i][j], Imp_x[i + 2][j] - Imp_x[i + 1][j], minmod_type);
-				impyr = Imp_y[i + 1][j] - 0.5 * minmod(Imp_y[i + 1][j] - Imp_y[i][j], Imp_y[i + 2][j] - Imp_y[i + 1][j], minmod_type);
-				rhoer = rhoe[i + 1][j] - 0.5 * minmod(rhoe[i + 1][j] - rhoe[i][j], rhoe[i + 2][j] - rhoe[i + 1][j], minmod_type);
-			}
+			massr = mass[i + 1][j] - 0.5 * minmod(mass[i + 1][j] - mass[i][j], mass[i + 2][j] - mass[i + 1][j], minmod_type);
+			impxr = Imp_x[i + 1][j] - 0.5 * minmod(Imp_x[i + 1][j] - Imp_x[i][j], Imp_x[i + 2][j] - Imp_x[i + 1][j], minmod_type);
+			impyr = Imp_y[i + 1][j] - 0.5 * minmod(Imp_y[i + 1][j] - Imp_y[i][j], Imp_y[i + 2][j] - Imp_y[i + 1][j], minmod_type);
+			rhoer = rhoe[i + 1][j] - 0.5 * minmod(rhoe[i + 1][j] - rhoe[i][j], rhoe[i + 2][j] - rhoe[i + 1][j], minmod_type);
 			Godunov_method_y(IS.gamma, IS.Q, massl, impxl, impyl, rhoel, massr, impxr, impyr, rhoer, FmR, FimpxR, FimpyR, FeR);
+			*/
 
 			//std::cout << FmL << " " << FmR << std::endl;
 
@@ -667,117 +625,30 @@ void Godunov_Kolgan_solver_2D_one_step(InitialState IS, double* t_start, vec1d& 
 			new_Imp_y[i][j] = Imp_y[i][j] - tau * (FimpyR - FimpyL) / IS.hx;
 			new_rhoe[i][j] = rhoe[i][j] - tau * (FeR - FeL) / IS.hx;
 
-			if (j == 0 && neighbors[0] == -1) {
-				Boundary_x(P[i][0], ux[i][0], uy[i][0], rho[i][0], pb, vxb, vyb, rhob, bound_left);
-				noncons_to_cons(IS.gamma, pb, vxb, vyb, rhob, mb, impxb, impyb, eb);
-				massl = mb;
-				impxl = impxb;
-				impyl = impyb;
-				rhoel = eb;
+			
+			massl = mass[i][j - 1] + 0.5 * minmod(mass[i][j - 1] - mass[i][j - 2], mass[i][j] - mass[i][j - 1], minmod_type);
+			impxl = Imp_x[i][j - 1] + 0.5 * minmod(Imp_x[i][j - 1] - Imp_x[i][j - 2], Imp_x[i][j] - Imp_x[i][j - 1], minmod_type);
+			impyl = Imp_y[i][j - 1] + 0.5 * minmod(Imp_y[i][j - 1] - Imp_y[i][j - 2], Imp_y[i][j] - Imp_y[i][j - 1], minmod_type);
+			rhoel = rhoe[i][j - 1] + 0.5 * minmod(rhoe[i][j - 1] - rhoe[i][j - 2], rhoe[i][j] - rhoe[i][j - 1], minmod_type);
 
-				massr = mass[i][0] - 0.5 * minmod(mass[i][0] - mb, mass[i][1] - mass[i][0], minmod_type);
-				impxr = Imp_x[i][0] - 0.5 * minmod(Imp_x[i][0] - impxb, Imp_x[i][1] - Imp_x[i][0], minmod_type);
-				impyr = Imp_y[i][0] - 0.5 * minmod(Imp_y[i][0] - impyb, Imp_y[i][1] - Imp_y[i][0], minmod_type);
-				rhoer = rhoe[i][0] - 0.5 * minmod(rhoe[i][0] - eb, rhoe[i][1] - rhoe[i][0], minmod_type);
-			}
-
-			else if (j == 1 && neighbors[0] == -1) {
-				Boundary_x(P[i][0], ux[i][0], uy[i][0], rho[i][0], pb, vxb, vyb, rhob, bound_left);
-				noncons_to_cons(IS.gamma, pb, vxb, vyb, rhob, mb, impxb, impyb, eb);
-
-				massr = mass[i][0] + 0.5 * minmod(mass[i][0] - mb, mass[i][1] - mass[i][0], minmod_type);
-				impxr = Imp_x[i][0] + 0.5 * minmod(Imp_x[i][0] - impxb, Imp_x[i][1] - Imp_x[i][0], minmod_type);
-				impyr = Imp_y[i][0] + 0.5 * minmod(Imp_y[i][0] - impyb, Imp_y[i][1] - Imp_y[i][0], minmod_type);
-				rhoer = rhoe[i][0] + 0.5 * minmod(rhoe[i][0] - eb, rhoe[i][1] - rhoe[i][0], minmod_type);
-
-				massr = mass[i][1] - 0.5 * minmod(mass[i][j] - mass[i][j - 1], mass[i][j + 1] - mass[i][j], minmod_type);
-				impxr = Imp_x[i][1] - 0.5 * minmod(Imp_x[i][j] - Imp_x[i][j - 1], Imp_x[i][j + 1] - Imp_x[i][j], minmod_type);
-				impyr = Imp_y[i][1] - 0.5 * minmod(Imp_y[i][j] - Imp_y[i][j - 1], Imp_y[i][j + 1] - Imp_y[i][j], minmod_type);
-				rhoer = rhoe[i][1] - 0.5 * minmod(rhoe[i][j] - rhoe[i][j - 1], rhoe[i][j + 1] - rhoe[i][j], minmod_type);
-			}
-
-			else if (j == IS.Nx - 1 && neighbors[2] == -3) {
-				Boundary_x(P[i][IS.Ny - 1], ux[i][IS.Ny - 1], uy[i][IS.Ny - 1], rho[i][IS.Ny - 1], pb, vxb, vyb, rhob, bound_right);
-				noncons_to_cons(IS.gamma, pb, vxb, vyb, rhob, mb, impxb, impyb, eb);
-
-				massl = mass[i][j - 1] + 0.5 * minmod(mass[i][j - 1] - mass[i][j - 2], mass[i][j] - mass[i][j - 1], minmod_type);
-				impxl = Imp_x[i][j - 1] + 0.5 * minmod(Imp_x[i][j - 1] - Imp_x[i][j - 2], Imp_x[i][j] - Imp_x[i][j - 1], minmod_type);
-				impyl = Imp_y[i][j - 1] + 0.5 * minmod(Imp_y[i][j - 1] - Imp_y[i][j - 2], Imp_y[i][j] - Imp_y[i][j - 1], minmod_type);
-				rhoel = rhoe[i][j - 1] + 0.5 * minmod(rhoe[i][j - 1] - rhoe[i][j - 2], rhoe[i][j] - rhoe[i][j - 1], minmod_type);
-
-				massr = mass[i][j] - 0.5 * minmod(mass[i][j] - mass[i][j - 1], mb - mass[i][j], minmod_type);
-				impxr = Imp_x[i][j] - 0.5 * minmod(Imp_x[i][j] - Imp_x[i][j - 1], impxb - Imp_x[i][j], minmod_type);
-				impyr = Imp_y[i][j] - 0.5 * minmod(Imp_y[i][j] - Imp_y[i][j - 1], impyb - Imp_y[i][j], minmod_type);
-				rhoer = rhoe[i][j] - 0.5 * minmod(rhoe[i][j] - rhoe[i][j - 1], eb - rhoe[i][j], minmod_type);
-			}
-
-			else {
-				massl = mass[i][j - 1] + 0.5 * minmod(mass[i][j - 1] - mass[i][j - 2], mass[i][j] - mass[i][j - 1], minmod_type);
-				impxl = Imp_x[i][j - 1] + 0.5 * minmod(Imp_x[i][j - 1] - Imp_x[i][j - 2], Imp_x[i][j] - Imp_x[i][j - 1], minmod_type);
-				impyl = Imp_y[i][j - 1] + 0.5 * minmod(Imp_y[i][j - 1] - Imp_y[i][j - 2], Imp_y[i][j] - Imp_y[i][j - 1], minmod_type);
-				rhoel = rhoe[i][j - 1] + 0.5 * minmod(rhoe[i][j - 1] - rhoe[i][j - 2], rhoe[i][j] - rhoe[i][j - 1], minmod_type);
-
-				massr = mass[i][j] - 0.5 * minmod(mass[i][j] - mass[i][j - 1], mass[i][j + 1] - mass[i][j], minmod_type);
-				impxr = Imp_x[i][j] - 0.5 * minmod(Imp_x[i][j] - Imp_x[i][j - 1], Imp_x[i][j + 1] - Imp_x[i][j], minmod_type);
-				impyr = Imp_y[i][j] - 0.5 * minmod(Imp_y[i][j] - Imp_y[i][j - 1], Imp_y[i][j + 1] - Imp_y[i][j], minmod_type);
-				rhoer = rhoe[i][j] - 0.5 * minmod(rhoe[i][j] - rhoe[i][j - 1], rhoe[i][j + 1] - rhoe[i][j], minmod_type);
-			}
+			massr = mass[i][j] - 0.5 * minmod(mass[i][j] - mass[i][j - 1], mass[i][j + 1] - mass[i][j], minmod_type);
+			impxr = Imp_x[i][j] - 0.5 * minmod(Imp_x[i][j] - Imp_x[i][j - 1], Imp_x[i][j + 1] - Imp_x[i][j], minmod_type);
+			impyr = Imp_y[i][j] - 0.5 * minmod(Imp_y[i][j] - Imp_y[i][j - 1], Imp_y[i][j + 1] - Imp_y[i][j], minmod_type);
+			rhoer = rhoe[i][j] - 0.5 * minmod(rhoe[i][j] - rhoe[i][j - 1], rhoe[i][j + 1] - rhoe[i][j], minmod_type);
 			Godunov_method_x(IS.gamma, IS.Q, massl, impxl, impyl, rhoel, massr, impxr, impyr, rhoer, FmL, FimpxL, FimpyL, FeL);
 
-			if (j == IS.Nx - 1 && neighbors[2] == -3) {
-				Boundary_x(P[i][IS.Ny - 1], ux[i][IS.Ny - 1], uy[i][IS.Ny - 1], rho[i][IS.Ny - 1], pb, vxb, vyb, rhob, bound_right);
-				noncons_to_cons(IS.gamma, pb, vxb, vyb, rhob, mb, impxb, impyb, eb);
+			/*
+			massl = mass[i][j] + 0.5 * minmod(mass[i][j] - mass[i][j - 1], mass[i][j + 1] - mass[i][j], minmod_type);
+			impxl = Imp_x[i][j] + 0.5 * minmod(Imp_x[i][j] - Imp_x[i][j - 1], Imp_x[i][j + 1] - Imp_x[i][j], minmod_type);
+			impyl = Imp_y[i][j] + 0.5 * minmod(Imp_y[i][j] - Imp_y[i][j - 1], Imp_y[i][j + 1] - Imp_y[i][j], minmod_type);
+			rhoel = rhoe[i][j] + 0.5 * minmod(rhoe[i][j] - rhoe[i][j - 1], rhoe[i][j + 1] - rhoe[i][j], minmod_type);
 
-				massl = mass[i][j] + 0.5 * minmod(mass[i][j] - mass[i][j - 1], mb - mass[i][j], minmod_type);
-				impxl = Imp_x[i][j] + 0.5 * minmod(Imp_x[i][j] - Imp_x[i][j - 1], impxb - Imp_x[i][j], minmod_type);
-				impyl = Imp_y[i][j] + 0.5 * minmod(Imp_y[i][j] - Imp_y[i][j - 1], impyb - Imp_y[i][j], minmod_type);
-				rhoel = rhoe[i][j] + 0.5 * minmod(rhoe[i][j] - rhoe[i][j - 1], eb - rhoe[i][j], minmod_type);
-
-				massr = mb;
-				impxr = impxb;
-				impyr = impyb;
-				rhoer = eb;
-			}
-			else if (j == IS.Nx - 2 && neighbors[2] == -3) {
-				Boundary_x(P[i][IS.Ny - 1], ux[i][IS.Ny - 1], uy[i][IS.Ny - 1], rho[i][IS.Ny - 1], pb, vxb, vyb, rhob, bound_right);
-				noncons_to_cons(IS.gamma, pb, vxb, vyb, rhob, mb, impxb, impyb, eb);
-
-				massl = mass[i][j] + 0.5 * minmod(mass[i][j] - mass[i][j - 1], mass[i][j + 1] - mass[i][j], minmod_type);
-				impxl = Imp_x[i][j] + 0.5 * minmod(Imp_x[i][j] - Imp_x[i][j - 1], Imp_x[i][j + 1] - Imp_x[i][j], minmod_type);
-				impyl = Imp_y[i][j] + 0.5 * minmod(Imp_y[i][j] - Imp_y[i][j - 1], Imp_y[i][j + 1] - Imp_y[i][j], minmod_type);
-				rhoel = rhoe[i][j] + 0.5 * minmod(rhoe[i][j] - rhoe[i][j - 1], rhoe[i][j + 1] - rhoe[i][j], minmod_type);
-
-				massr = mass[i][j + 1] - 0.5 * minmod(mass[i][j + 1] - mass[i][j], mb - mass[i][j + 1], minmod_type);
-				impxr = Imp_x[i][j + 1] - 0.5 * minmod(Imp_x[i][j + 1] - Imp_x[i][j], impxb - Imp_x[i][j + 1], minmod_type);
-				impyr = Imp_y[i][j + 1] - 0.5 * minmod(Imp_y[i][j + 1] - Imp_y[i][j], impyb - Imp_y[i][j + 1], minmod_type);
-				rhoer = rhoe[i][j + 1] - 0.5 * minmod(rhoe[i][j + 1] - rhoe[i][j], eb - rhoe[i][j + 1], minmod_type);
-			}
-			else if (j == 0 && neighbors[0] == -1) {
-				Boundary_x(P[i][0], ux[i][0], uy[i][0], rho[i][0], pb, vxb, vyb, rhob, bound_left);
-				noncons_to_cons(IS.gamma, pb, vxb, vyb, rhob, mb, impxb, impyb, eb);
-
-				massl = mass[i][j] + 0.5 * minmod(mass[i][j] - mb, mass[i][j + 1] - mass[i][j], minmod_type);
-				impxl = Imp_x[i][j] + 0.5 * minmod(Imp_x[i][j] - impxb, Imp_x[i][j + 1] - Imp_x[i][j], minmod_type);
-				impyl = Imp_y[i][j] + 0.5 * minmod(Imp_y[i][j] - impyb, Imp_y[i][j + 1] - Imp_y[i][j], minmod_type);
-				rhoel = rhoe[i][j] + 0.5 * minmod(rhoe[i][j] - eb, rhoe[i][j + 1] - rhoe[i][j], minmod_type);
-
-				massr = mass[i][j + 1] - 0.5 * minmod(mass[i][j + 1] - mass[i][j], mass[i][j + 2] - mass[i][j + 1], minmod_type);
-				impxr = Imp_x[i][j + 1] - 0.5 * minmod(Imp_x[i][j + 1] - Imp_x[i][j], Imp_x[i][j + 2] - Imp_x[i][j + 1], minmod_type);
-				impyr = Imp_y[i][j + 1] - 0.5 * minmod(Imp_y[i][j + 1] - Imp_y[i][j], Imp_y[i][j + 2] - Imp_y[i][j + 1], minmod_type);
-				rhoer = rhoe[i][j + 1] - 0.5 * minmod(rhoe[i][j + 1] - rhoe[i][j], rhoe[i][j + 2] - rhoe[i][j + 1], minmod_type);
-			}
-			else {
-				massl = mass[i][j] + 0.5 * minmod(mass[i][j] - mass[i][j - 1], mass[i][j + 1] - mass[i][j], minmod_type);
-				impxl = Imp_x[i][j] + 0.5 * minmod(Imp_x[i][j] - Imp_x[i][j - 1], Imp_x[i][j + 1] - Imp_x[i][j], minmod_type);
-				impyl = Imp_y[i][j] + 0.5 * minmod(Imp_y[i][j] - Imp_y[i][j - 1], Imp_y[i][j + 1] - Imp_y[i][j], minmod_type);
-				rhoel = rhoe[i][j] + 0.5 * minmod(rhoe[i][j] - rhoe[i][j - 1], rhoe[i][j + 1] - rhoe[i][j], minmod_type);
-
-				massr = mass[i][j + 1] - 0.5 * minmod(mass[i][j + 1] - mass[i][j], mass[i][j + 2] - mass[i][j + 1], minmod_type);
-				impxr = Imp_x[i][j + 1] - 0.5 * minmod(Imp_x[i][j + 1] - Imp_x[i][j], Imp_x[i][j + 2] - Imp_x[i][j + 1], minmod_type);
-				impyr = Imp_y[i][j + 1] - 0.5 * minmod(Imp_y[i][j + 1] - Imp_y[i][j], Imp_y[i][j + 2] - Imp_y[i][j + 1], minmod_type);
-				rhoer = rhoe[i][j + 1] - 0.5 * minmod(rhoe[i][j + 1] - rhoe[i][j], rhoe[i][j + 2] - rhoe[i][j + 1], minmod_type);
-			}
+			massr = mass[i][j + 1] - 0.5 * minmod(mass[i][j + 1] - mass[i][j], mass[i][j + 2] - mass[i][j + 1], minmod_type);
+			impxr = Imp_x[i][j + 1] - 0.5 * minmod(Imp_x[i][j + 1] - Imp_x[i][j], Imp_x[i][j + 2] - Imp_x[i][j + 1], minmod_type);
+			impyr = Imp_y[i][j + 1] - 0.5 * minmod(Imp_y[i][j + 1] - Imp_y[i][j], Imp_y[i][j + 2] - Imp_y[i][j + 1], minmod_type);
+			rhoer = rhoe[i][j + 1] - 0.5 * minmod(rhoe[i][j + 1] - rhoe[i][j], rhoe[i][j + 2] - rhoe[i][j + 1], minmod_type);
 			Godunov_method_x(IS.gamma, IS.Q, massl, impxl, impyl, rhoel, massr, impxr, impyr, rhoer, FmR, FimpxR, FimpyR, FeR);
+			*/
 
 			new_mass[i][j] = new_mass[i][j] - tau * (FmR - FmL) / IS.hy;
 			new_Imp_x[i][j] = new_Imp_x[i][j] - tau * (FimpxR - FimpxL) / IS.hy;
@@ -971,6 +842,72 @@ void sending(InitialState IS, vec2d& P, vec2d& ux, vec2d& uy, vec2d& rho, int* n
 }
 
 
+void writeCSV(std::string filename, int iter, vec1d x, vec1d y, vec2d ux, vec2d uy, vec2d P, vec2d rho, double t, int Nx, int Ny, int fict) {
+	std::string name = "CSVs\\";
+	name += filename;
+	name += "\\Iter=";
+	name += std::to_string(iter);
+	name += ".csv";
+
+	std::ofstream outfile(name);
+	std::string tmp;
+	tmp = "Time,X,Y,Rho,P,Ux,Uy\n";
+	outfile << tmp;
+	for (int i = fict; i < Ny - fict; i++) {
+		for (int j = fict; j < Nx - fict; j++) {
+			tmp = "";
+			tmp += std::to_string(t) + ',';
+			tmp += std::to_string(x[j]) + ',';
+			tmp += std::to_string(y[i]) + ',';
+			tmp += std::to_string(rho[i][j]) + ',';
+			tmp += std::to_string(P[i][j]) + ',';
+			tmp += std::to_string(ux[i][j]) + ',';
+			tmp += std::to_string(uy[i][j]) + '\n';
+			outfile << tmp;
+		}
+	}
+	outfile.close();
+}
+
+
+void writeCSV_p(std::string filename, InitialState& IS, int iter, vec1d& xc, vec1d& yc, vec2d& ux, vec2d& uy, vec2d& P, vec2d& rho,
+				double _time, int myrank, MPI_Comm comm) {
+	if (myrank == 0) {
+		if (!fs::exists(out_dir)) {
+			fs::create_directory(out_dir);
+		}
+	}
+	MPI_Barrier(comm);
+
+	std::string name = "CSVs\\";
+	name += filename;
+	name += "\\Iter=";
+	name += std::to_string(iter);
+	name += ".csv";
+
+	std::ostringstream buffer;
+
+	if (myrank == 0) {
+		buffer << (std::to_string(_time) + "\n") << "X,Y,Rho,P,Ux,Uy\n";
+	}
+	for (int i = IS.fict; i < IS.Ny - IS.fict; ++i) {
+		for (int j = IS.fict; j < IS.Nx - IS.fict; ++j) {
+			buffer << xc[i] << "," << yc[j] << "," << rho[i][j] << ',' << P[i][j] << ',' << ux[i][j] << ',' << uy[i][j] << "\n";
+		}
+	}
+
+	std::string local_data = buffer.str();
+	int local_size = local_data.size();
+
+	int offset = 0;
+	MPI_Exscan(&local_size, &offset, 1, MPI_INT, MPI_SUM, comm);
+	MPI_File fh;
+	MPI_File_open(comm, name.c_str(), MPI_MODE_CREATE | MPI_MODE_WRONLY, MPI_INFO_NULL, &fh);
+	MPI_File_write_at_all(fh, offset, local_data.c_str(), local_size, MPI_CHAR, MPI_STATUS_IGNORE);
+	MPI_File_close(&fh);
+}
+
+
 int main(int argc, char* argv[]) {
 	// Godunov_Kolgan_solver_2D();
 
@@ -980,6 +917,15 @@ int main(int argc, char* argv[]) {
 	MPI_Init(&argc, &argv);
 	MPI_Comm_size(MPI_COMM_WORLD, &size);
 	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
+	// global boundary conditions
+	int bound_left = 1, bound_right = 1, bound_down = 0, bound_up = 0;
+	int minmod_type = 1;
+
+	InitialState IS;
+	int px, py;
+	mpi_get_px_py(size, IS.nx, IS.ny, &px, &py);
+	std::cout << "px " << px << "; py " << py << std::endl;
 
 	int neighbors[4]; // 0 - left, 1 - up, 2 - right, 3 - down
 	// -1 - left, -2 - up, -3 - right, -4 - down
@@ -1038,14 +984,6 @@ int main(int argc, char* argv[]) {
 		neighbors[3] = rank - px;
 	}
 
-	// global boundary conditions
-	int bound_left = 1, bound_right = 1, bound_down = 0, bound_up = 0;
-	int minmod_type = 1;
-
-	InitialState IS;
-	int px, py;
-	mpi_get_px_py(size, IS.nx, IS.ny, &px, &py);
-	std::cout << "px " << px << "; py " << py << std::endl;
 
 	int start_x, stop_x;
 	int start_y, stop_y;
@@ -1096,17 +1034,20 @@ int main(int argc, char* argv[]) {
 	grid(IS, x, y, xc, yc);
 	initial_state(IS.Nx, IS.Ny, IS.gamma, xc, yc, P, ux, uy, rho, mass, Imp_x, Imp_y, rhoe);
 
-	writeCSV(filename, iter, xc, yc, ux, uy, P, rho, t_start, IS.Nx, IS.Ny, IS.fict);
+	// writeCSV(filename, iter, xc, yc, ux, uy, P, rho, t_start, IS.Nx, IS.Ny, IS.fict);
+	writeCSV_p(filename, IS, iter, xc, yc, ux, uy, P, rho, t_start, rank, MPI_COMM_WORLD);
 
 	while (t_start < IS.t_end && iter < max_Nt) {
 		Godunov_Kolgan_solver_2D_one_step(IS, &t_start, x, y, P, ux, uy, rho, mass, Imp_x, Imp_y, rhoe, 
 			neighbors, bound_left, bound_up, bound_right, bound_down, minmod_type);
 		if (iter % iterwrite == 0) {
-			writeCSV(filename, iter, xc, yc, ux, uy, P, rho, t_start, IS.Nx, IS.Ny, IS.fict);
+			// writeCSV(filename, iter, xc, yc, ux, uy, P, rho, t_start, IS.Nx, IS.Ny, IS.fict);
+			writeCSV_p(filename, IS, iter, xc, yc, ux, uy, P, rho, t_start, rank, MPI_COMM_WORLD);
 		}
 		iter += 1;
 	}
-	writeCSV(filename, iter, xc, yc, ux, uy, P, rho, t_start, IS.Nx, IS.Ny, IS.fict);
+	//writeCSV(filename, iter, xc, yc, ux, uy, P, rho, t_start, IS.Nx, IS.Ny, IS.fict);
+	writeCSV_p(filename, IS, iter, xc, yc, ux, uy, P, rho, t_start, rank, MPI_COMM_WORLD);
 
 	if (t_start >= IS.t_end) {
 		std::cout << "Solve stopped by time\n";

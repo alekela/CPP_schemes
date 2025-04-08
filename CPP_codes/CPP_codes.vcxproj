@@ -130,7 +130,7 @@
     <None Include="test_input.csv" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="Godunov_Kolgan_2D_parallel.cpp" />
+    <ClCompile Include="Godunov_Kolgan_2D_parallel_second_try.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
