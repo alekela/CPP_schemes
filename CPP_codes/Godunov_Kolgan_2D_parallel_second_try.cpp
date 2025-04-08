@@ -493,7 +493,7 @@ void Init(InitialState& params, vec1d& xc, vec1d& yc, vec2d& p, vec2d& vx, vec2d
 }
 
 //save results in the directory out_dir
-void writeCSV(std::string filename, InitialState& IS, int iter, vec1d& xc, vec1d& yc, vec2d& P, vec2d& ux, vec2d& uy, vec2d& rho, double _time) {
+void writeCSV(std::string filename, InitialState& IS, int iter, vec1d& xc, vec1d& yc, vec2d& ux, vec2d& uy, vec2d& P, vec2d& rho, double _time) {
     std::string name = filename;
     name += "/Iter=";
     name += std::to_string(iter);
@@ -611,7 +611,7 @@ void calc_f(InitialState& params, double& F, double& FD, double p_curr, double p
 }
 
 //Toro p.158 Subroutine SAMPLE
-//to sample the solution throughout the wave pattern. Sampling is performed in terms of the íspeedí S = X/T.
+//to sample the solution throughout the wave pattern. Sampling is performed in terms of the ¬íspeed¬í S = X/T.
 void find_in_which_part(InitialState& params, double pl, double vl, double rl, double cl, double pr, double vr, double rr, double cr, double p_cont, double v_cont, double s, double& p_res, double& v_res, double& r_res) {
 
     double g1 = (params.g - 1.0) / 2. / params.g;
@@ -641,7 +641,7 @@ void find_in_which_part(InitialState& params, double pl, double vl, double rl, d
             //Left rarefaction
             shl = vl - cl;
             if (s <= shl) {
-                //ÒÎÂ‚‡ ÓÚ  –
+                //√±√´√•√¢√† √Æ√≤ √ä√ê
                 r = rl;
                 v = vl;
                 p = pl;
@@ -650,7 +650,7 @@ void find_in_which_part(InitialState& params, double pl, double vl, double rl, d
                 cml = cl * pow(p_cont / pl, g1);
                 stl = v_cont - cml;
                 if (s > stl) {
-                    //ÒÎÂ‚‡ ÓÚ  –
+                    //√±√´√•√¢√† √Æ√≤ √ä√ê
                     r = rl * pow(p_cont / pl, 1.0 / params.g); //Toro p.134 (4.53)
                     v = v_cont;
                     p = p_cont;
@@ -670,13 +670,13 @@ void find_in_which_part(InitialState& params, double pl, double vl, double rl, d
             p_ratio = p_cont / pl;
             sl = vl - cl * std::sqrt(g2 * p_ratio + g1);
             if (s <= sl) {
-                //ÒÎÂ‚‡ ÓÚ  –
+                //√±√´√•√¢√† √Æ√≤ √ä√ê
                 r = rl;
                 v = vl;
                 p = pl;
             }
             else {
-                //Á‡ ÎÂ‚ÓÈ ”¬
+                //√ß√† √´√•√¢√Æ√© √ì√Ç
                 r = rl * (p_ratio + g6) / (p_ratio * g6 + 1.0); //Toro p.133 (4.50)
                 v = v_cont;
                 p = p_cont;
@@ -689,13 +689,13 @@ void find_in_which_part(InitialState& params, double pl, double vl, double rl, d
             p_ratio = p_cont / pr;
             sr = vr + cr * std::sqrt(g2 * p_ratio + g1);
             if (s >= sr) {
-                //ÒÔ‡‚‡ ÓÚ  –
+                //√±√Ø√∞√†√¢√† √Æ√≤ √ä√ê
                 r = rr;
                 v = vr;
                 p = pr;
             }
             else {
-                //Á‡ Ô‡‚ÓÈ ”¬
+                //√ß√† √Ø√∞√†√¢√Æ√© √ì√Ç
                 r = rr * (p_ratio + g6) / (p_ratio * g6 + 1.0); //Toro p.135 (4.57)
                 v = v_cont;
                 p = p_cont;
@@ -705,7 +705,7 @@ void find_in_which_part(InitialState& params, double pl, double vl, double rl, d
             //right rarefaction
             shr = vr + cr;
             if (s >= shr) {
-                //ÒÔ‡‚‡ ÓÚ  –
+                //√±√Ø√∞√†√¢√† √Æ√≤ √ä√ê
                 r = rr;
                 v = vr;
                 p = pr;
@@ -714,7 +714,7 @@ void find_in_which_part(InitialState& params, double pl, double vl, double rl, d
                 cmr = cr * pow(p_cont / pr, g1);
                 str = v_cont + cmr;
                 if (s <= str) {
-                    //ÒÔ‡‚‡ ÓÚ  –
+                    //√±√Ø√∞√†√¢√† √Æ√≤ √ä√ê
                     r = rr * pow(p_cont / pr, 1.0 / params.g); //Toro p.136 (4.60)
                     v = v_cont;
                     p = p_cont;
