@@ -1,0 +1,13 @@
+#!/bin/bash
+#
+#SBATCH --nodes=1
+#SBATCH --tasks-per-node=12
+#SBATCH --job-name=CPPsolve
+#SBATCH --time=10:00:00
+#SBATCH --output=./out/slurm-%j.out
+#
+
+mpiCC GKR_W_2D.cpp -o solver
+mpirun -np 5 ./solver
+#g++ Godunov_Kolgan_2D_parallel_second_try.cpp -o solver
+#./solver

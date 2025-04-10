@@ -4,16 +4,9 @@
 #include <vector>
 #include <map>
 #include <cmath>
-#include <stdio.h>
 #include <stdlib.h>
-#include <mpi.h>
-#include <filesystem>
-#include <fstream>
-#include <sstream>
-#include <sstream>
 
 
-namespace fs = std::filesystem;
 typedef std::vector<double> vec1d;
 typedef std::vector<std::vector<double>> vec2d;
 
@@ -29,8 +22,10 @@ struct InitialState {
 	double x_end = 1;
 	double y_start = 0;
 	double y_end = 1;
-	double hx = (x_end - x_start) / nx;
-	double hy = (y_end - y_start) / ny;
+	double Lx = x_end - x_start;
+	double Ly = y_end - y_start;
+	double hx = Lx / nx;
+	double hy = Ly / ny;
 
 	double t_end = 0.25;
 	double time = 0;
@@ -45,6 +40,34 @@ struct InitialState {
 };
 
 
+void writeCSV(std::string filename, int iter, vec1d x, vec1d y, vec2d ux, vec2d uy, vec2d P, vec2d rho, double t, int Nx, int Ny, int fict) {
+	std::string name = "CSVs/";
+	name += filename;
+	name += "/Iter=";
+	name += std::to_string(iter);
+	name += ".csv";
+
+	std::ofstream outfile(name);
+	std::string tmp;
+	tmp = "Time,X,Y,Rho,P,Ux,Uy\n";
+	outfile << tmp;
+	for (int i = fict; i < Ny - fict; i++) {
+		for (int j = fict; j < Nx - fict; j++) {
+			tmp = "";
+			tmp += std::to_string(t) + ',';
+			tmp += std::to_string(x[j]) + ',';
+			tmp += std::to_string(y[i]) + ',';
+			tmp += std::to_string(rho[i][j]) + ',';
+			tmp += std::to_string(P[i][j]) + ',';
+			tmp += std::to_string(ux[i][j]) + ',';
+			tmp += std::to_string(uy[i][j]) + '\n';
+			outfile << tmp;
+		}
+	}
+	outfile.close();
+}
+
+
 // from conservative
 void cons_to_noncons(double gamma, double& p, double& vx, double& vy, double& rho, double& m, double& impx, double& impy, double& rhoe) {
 	p = (gamma - 1.0) * (rhoe - 0.5 * (pow(impx, 2.0) + pow(impy, 2.0)) * m);
@@ -57,6 +80,45 @@ void noncons_to_cons(double gamma, double& p, double& vx, double& vy, double& rh
 	m = rho;
 	impx = rho * vx;
 	rhoe = 0.5 * rho * (pow(vx, 2.0) + pow(vy, 2.0)) + p / (gamma - 1.0);
+}
+
+
+void Boundary_x(double p, double vx, double vy, double rho, double& pb, double& vxb, double& vyb, double& rhob, int mode) {
+	// wall
+	if (mode == 0)
+	{
+		pb = p;
+		vxb = -vx;
+		vyb = vy;
+		rhob = rho;
+	}
+	// free flux
+	else
+	{
+		pb = p;
+		vxb = vx;
+		vyb = vy;
+		rhob = rho;
+	}
+}
+
+void Boundary_y(double p, double vx, double vy, double rho, double& pb, double& vxb, double& vyb, double& rhob, int mode) {
+	// wall
+	if (mode == 0)
+	{
+		pb = p;
+		vxb = vx;
+		vyb = -vy;
+		rhob = rho;
+	}
+	// free flux
+	else
+	{
+		pb = p;
+		vxb = vx;
+		vyb = vy;
+		rhob = rho;
+	}
 }
 
 
@@ -77,21 +139,30 @@ void grid(InitialState IS, vec1d& x, vec1d& y, vec1d& xc, vec1d& yc) {
 }
 
 
-void initial_state(int Nx, int Ny, double gamma, vec1d xc, vec1d yc, vec2d& p, vec2d& vx, vec2d& vy, vec2d& rho, vec2d& m, vec2d& impx, vec2d& impy, vec2d& rhoe) {
+void initial_state(InitialState* IS, int Nx, int Ny, double gamma, vec1d xc, vec1d yc, vec2d& p, vec2d& vx, vec2d& vy, vec2d& rho, vec2d& m, vec2d& impx, vec2d& impy, vec2d& rhoe) {
 	double R = 0.1;
 	double p1, vx1, vy1, rho1, p2, vx2, vy2, rho2, d;
 
 	// toro test 1
 
 	p1 = 1.0;
-	vx1 = 0.;
+	vx1 = 0.75;
 	vy1 = 0.;
 	rho1 = 1.0;
 
-	p2 = 0.1;
+	p2 = 1.0;
 	vx2 = 0.;
 	vy2 = 0.;
 	rho2 = 0.125;
+
+	IS->P_left = p1;
+	IS->P_right = p2;
+	IS->ux_left = vx1;
+	IS->uy_left = vy1;
+	IS->ux_right = vx2;
+	IS->uy_right = vy2;
+	IS->rho_left = rho1;
+	IS->rho_right = rho2;
 
 	for (int i = 0; i < Ny; i++) {
 		for (int j = 0; j < Nx; j++) {
@@ -179,6 +250,14 @@ void Newton_find_P(double gamma, double Quser, double PL, double DL, double UL, 
 	else {
 		if (PPV < PMIN) // two rarefaction waves
 		{
+			/*
+
+			double PQ = pow(PL / PR, (gamma - 1.0) / (2.0 * gamma));
+			UM = (PQ * UL / CL + UR / CR + 2.0 / (gamma - 1.0) * (PQ - 1.0f) / (PQ / CL + 1.0f / CR));
+			double PTL = 1.0 + (gamma - 1.0) / 2.0 * (UL - UM) / CL;
+			double PTR = 1.0 + (gamma - 1.0) / 2.0 * (UM - UR) / CR;
+			PM = 0.5 * (PL * pow(PTL, 2.0 * gamma / (gamma - 1.0)) + PR * pow(PTR, 2.0 * gamma / (gamma - 1.0)));
+			*/
 			double gamma1 = 0.5 * (gamma - 1.0) / gamma;
 			PM = pow(abs(CL + CR - 0.5 * (gamma - 1.0) * (UR - UL)) / abs(CL / pow(PL, gamma1) + CR / pow(PR, gamma1)), 1.0 / gamma1);
 		}
@@ -197,7 +276,7 @@ void Newton_find_P(double gamma, double Quser, double PL, double DL, double UL, 
 
 
 //  to compute the solution for pressure and velocity on contact
-void Riemann_solver(double gamma, double Quser, double PL, double DL, double UL, double PR, double DR, double UR, double& UM, double& PM) {
+void Rieman_solver(double gamma, double Quser, double PL, double DL, double UL, double PR, double DR, double UR, double& UM, double& PM) {
 	int NRITER = 30;
 	double CHANGE = 1e6, FL, FLD, FR, FRD, POLD, TOLPRE = 1.0e-6, UDIFF;
 	double CL = sqrt(gamma * PL / DL);
@@ -370,7 +449,7 @@ void Riemann_solver(double gamma, double Quser, double PL, double DL, double UL,
 		std::cout << "Vacuum is generated" << std::endl << "Program stopped" << std::endl;
 		exit(228);
 	}
-	Riemann_solver(gamma, Quser, PL, DL, UL, PR, DR, UR, UM, PM);
+	Rieman_solver(gamma, Quser, PL, DL, UL, PR, DR, UR, UM, PM);
 
 	// found results
 	find_in_which_part(gamma, PL, DL, UL, PR, DR, UR, UM, PM, 0., D, U, P);
@@ -441,44 +520,6 @@ void Godunov_method_y(double gamma, double Quser, double md, double impxd, doubl
 	Godunov_flux_y(gamma, p, vx, vy, rho, Fm, Fimpx, Fimpy, Fe);
 }
 
-
-void Boundary_x(double p, double vx, double vy, double rho, double& pb, double& vxb, double& vyb, double& rhob, int mode) {
-	// wall
-	if (mode == 0)
-	{
-		pb = p;
-		vxb = -vx;
-		vyb = vy;
-		rhob = rho;
-	}
-	// free flux
-	else
-	{
-		pb = p;
-		vxb = vx;
-		vyb = vy;
-		rhob = rho;
-	}
-}
-
-void Boundary_y(double p, double vx, double vy, double rho, double& pb, double& vxb, double& vyb, double& rhob, int mode) {
-	// wall
-	if (mode == 0)
-	{
-		pb = p;
-		vxb = vx;
-		vyb = -vy;
-		rhob = rho;
-	}
-	// free flux
-	else
-	{
-		pb = p;
-		vxb = vx;
-		vyb = vy;
-		rhob = rho;
-	}
-}
 
 void Boundary(InitialState IS, vec2d& P, vec2d& ux, vec2d& uy, vec2d& rho, int b_l, int b_u, int b_r, int b_d) {
 	if (b_l > -1) {
@@ -605,7 +646,7 @@ void Godunov_Kolgan_solver_2D_one_step(InitialState IS, double* t_start, vec1d& 
 
 			Godunov_method_y(IS.gamma, IS.Q, massl, impxl, impyl, rhoel, massr, impxr, impyr, rhoer, FmL, FimpxL, FimpyL, FeL);
 
-			/*
+			
 			massl = mass[i][j] + 0.5 * minmod(mass[i][j] - mass[i - 1][j], mass[i + 1][j] - mass[i][j], minmod_type);
 			impxl = Imp_x[i][j] + 0.5 * minmod(Imp_x[i][j] - Imp_x[i - 1][j], Imp_x[i + 1][j] - Imp_x[i][j], minmod_type);
 			impyl = Imp_y[i][j] + 0.5 * minmod(Imp_y[i][j] - Imp_y[i - 1][j], Imp_y[i + 1][j] - Imp_y[i][j], minmod_type);
@@ -616,7 +657,7 @@ void Godunov_Kolgan_solver_2D_one_step(InitialState IS, double* t_start, vec1d& 
 			impyr = Imp_y[i + 1][j] - 0.5 * minmod(Imp_y[i + 1][j] - Imp_y[i][j], Imp_y[i + 2][j] - Imp_y[i + 1][j], minmod_type);
 			rhoer = rhoe[i + 1][j] - 0.5 * minmod(rhoe[i + 1][j] - rhoe[i][j], rhoe[i + 2][j] - rhoe[i + 1][j], minmod_type);
 			Godunov_method_y(IS.gamma, IS.Q, massl, impxl, impyl, rhoel, massr, impxr, impyr, rhoer, FmR, FimpxR, FimpyR, FeR);
-			*/
+			
 
 			//std::cout << FmL << " " << FmR << std::endl;
 
@@ -637,7 +678,7 @@ void Godunov_Kolgan_solver_2D_one_step(InitialState IS, double* t_start, vec1d& 
 			rhoer = rhoe[i][j] - 0.5 * minmod(rhoe[i][j] - rhoe[i][j - 1], rhoe[i][j + 1] - rhoe[i][j], minmod_type);
 			Godunov_method_x(IS.gamma, IS.Q, massl, impxl, impyl, rhoel, massr, impxr, impyr, rhoer, FmL, FimpxL, FimpyL, FeL);
 
-			/*
+			
 			massl = mass[i][j] + 0.5 * minmod(mass[i][j] - mass[i][j - 1], mass[i][j + 1] - mass[i][j], minmod_type);
 			impxl = Imp_x[i][j] + 0.5 * minmod(Imp_x[i][j] - Imp_x[i][j - 1], Imp_x[i][j + 1] - Imp_x[i][j], minmod_type);
 			impyl = Imp_y[i][j] + 0.5 * minmod(Imp_y[i][j] - Imp_y[i][j - 1], Imp_y[i][j + 1] - Imp_y[i][j], minmod_type);
@@ -648,7 +689,7 @@ void Godunov_Kolgan_solver_2D_one_step(InitialState IS, double* t_start, vec1d& 
 			impyr = Imp_y[i][j + 1] - 0.5 * minmod(Imp_y[i][j + 1] - Imp_y[i][j], Imp_y[i][j + 2] - Imp_y[i][j + 1], minmod_type);
 			rhoer = rhoe[i][j + 1] - 0.5 * minmod(rhoe[i][j + 1] - rhoe[i][j], rhoe[i][j + 2] - rhoe[i][j + 1], minmod_type);
 			Godunov_method_x(IS.gamma, IS.Q, massl, impxl, impyl, rhoel, massr, impxr, impyr, rhoer, FmR, FimpxR, FimpyR, FeR);
-			*/
+			
 
 			new_mass[i][j] = new_mass[i][j] - tau * (FmR - FmL) / IS.hy;
 			new_Imp_x[i][j] = new_Imp_x[i][j] - tau * (FimpxR - FimpxL) / IS.hy;
@@ -671,7 +712,7 @@ void Godunov_Kolgan_solver_2D_one_step(InitialState IS, double* t_start, vec1d& 
 	}
 	return;
 }
-
+		
 
 void mpi_get_px_py(int p, int Nx, int Ny, int* px, int* py) {
 	if (p == 1) {
@@ -709,312 +750,31 @@ void mpi_get_px_py(int p, int Nx, int Ny, int* px, int* py) {
 }
 
 
-void sending(InitialState IS, vec2d& P, vec2d& ux, vec2d& uy, vec2d& rho, int* neighbors, int rank, MPI_Status* Status) {
-	int length;
-	int recv_len;
-	vec1d send_arr;
-	for (int d = 0; d < 4; d++) {
-		if (neighbors[d] > 0) {
-			// packing data to send
-			if (d == 0) {
-				length = 4 * (IS.Ny - 2 * IS.fict) * IS.fict;
-				send_arr.reserve(length);
-				for (int i = IS.fict; i < IS.Ny - IS.fict; i++) {
-					for (int j = IS.fict; j < IS.fict + IS.fict; j++) {
-						for (int k = 0; k < 4; k++) {
-							if (k == 0) send_arr[i * (IS.Ny - 2 * IS.fict) + j * IS.fict + k] = P[i][j];
-							if (k == 1) send_arr[i * (IS.Ny - 2 * IS.fict) + j * IS.fict + k] = ux[i][j];
-							if (k == 2) send_arr[i * (IS.Ny - 2 * IS.fict) + j * IS.fict + k] = uy[i][j];
-							if (k == 3) send_arr[i * (IS.Ny - 2 * IS.fict) + j * IS.fict + k] = rho[i][j];
-						}
-					}
-				}
-			}
-			else if (d == 1) {
-				length = 4 * (IS.Nx - 2 * IS.fict) * IS.fict;
-				send_arr.reserve(length);
-				for (int i = IS.Ny - 2 * IS.fict; i < IS.Ny - IS.fict; i++) {
-					for (int j = IS.fict; j < IS.Nx - IS.fict; j++) {
-						for (int k = 0; k < 4; k++) {
-							if (k == 0) send_arr[i * IS.fict + j * (IS.Nx - 2 * IS.fict) + k] = P[i][j];
-							if (k == 1) send_arr[i * IS.fict + j * (IS.Nx - 2 * IS.fict) + k] = ux[i][j];
-							if (k == 2) send_arr[i * IS.fict + j * (IS.Nx - 2 * IS.fict) + k] = uy[i][j];
-							if (k == 3) send_arr[i * IS.fict + j * (IS.Nx - 2 * IS.fict) + k] = rho[i][j];
-						}
-					}
-				}
-			}
-			else if (d == 2) {
-				length = 4 * (IS.Ny - 2 * IS.fict) * IS.fict;
-				send_arr.reserve(length);
-				for (int i = IS.fict; i < IS.Ny - IS.fict; i++) {
-					for (int j = IS.Nx - 2 * IS.fict; j < IS.Nx - IS.fict; j++) {
-						for (int k = 0; k < 4; k++) {
-							if (k == 0) send_arr[i * (IS.Ny - 2 * IS.fict) + j * IS.fict + k] = P[i][j];
-							if (k == 1) send_arr[i * (IS.Ny - 2 * IS.fict) + j * IS.fict + k] = ux[i][j];
-							if (k == 2) send_arr[i * (IS.Ny - 2 * IS.fict) + j * IS.fict + k] = uy[i][j];
-							if (k == 3) send_arr[i * (IS.Ny - 2 * IS.fict) + j * IS.fict + k] = rho[i][j];
-						}
-					}
-				}
-			}
-			else if (d == 3) {
-				length = 4 * (IS.Nx - 2 * IS.fict) * IS.fict;
-				send_arr.reserve(length);
-				for (int i = IS.fict; i < IS.fict + IS.fict; i++) {
-					for (int j = IS.fict; j < IS.Nx - IS.fict; j++) {
-						for (int k = 0; k < 4; k++) {
-							if (k == 0) send_arr[i * IS.fict + j * (IS.Nx - 2 * IS.fict) + k] = P[i][j];
-							if (k == 1) send_arr[i * IS.fict + j * (IS.Nx - 2 * IS.fict) + k] = ux[i][j];
-							if (k == 2) send_arr[i * IS.fict + j * (IS.Nx - 2 * IS.fict) + k] = uy[i][j];
-							if (k == 3) send_arr[i * IS.fict + j * (IS.Nx - 2 * IS.fict) + k] = rho[i][j];
-						}
-					}
-				}
-			}
-			MPI_Send(&(send_arr[0]), length, MPI_DOUBLE, neighbors[d], neighbors[d], MPI_COMM_WORLD);
-			MPI_Recv(&(recv_len), 1, MPI_INT, neighbors[d], rank, MPI_COMM_WORLD, Status);
-			std::vector<double> recv_arr;
-			MPI_Recv(&(recv_arr[0]), recv_len, MPI_DOUBLE, neighbors[d], rank, MPI_COMM_WORLD, Status);
-			// unpacking received data
-			if (d == 0) {
-				if (recv_len != 4 * (IS.Ny - 2 * IS.fict) * IS.fict) {
-					std::cerr << "Error in sending" << std::endl;
-				}
-				for (int i = IS.fict; i < IS.Ny - IS.fict; i++) {
-					for (int j = IS.Nx - IS.fict; j < IS.Nx; j++) {
-						for (int k = 0; k < 4; k++) {
-							if (k == 0) P[i][j] = recv_arr[i * (IS.Ny - 2 * IS.fict) + j * IS.fict + k];
-							if (k == 1) ux[i][j] = recv_arr[i * (IS.Ny - 2 * IS.fict) + j * IS.fict + k];
-							if (k == 2) uy[i][j] = recv_arr[i * (IS.Ny - 2 * IS.fict) + j * IS.fict + k];
-							if (k == 3) rho[i][j] = recv_arr[i * (IS.Ny - 2 * IS.fict) + j * IS.fict + k];
-						}
-					}
-				}
-			}
-			else if (d == 1) {
-				if (recv_len != 4 * (IS.Nx - 2 * IS.fict) * IS.fict) {
-					std::cerr << "Error in sending" << std::endl;
-				}
-				for (int i = 0; i < IS.fict; i++) {
-					for (int j = IS.fict; j < IS.Nx - IS.fict; j++) {
-						for (int k = 0; k < 4; k++) {
-							if (k == 0) P[i][j] = send_arr[i * IS.fict + j * (IS.Nx - 2 * IS.fict) + k];
-							if (k == 1) ux[i][j] = send_arr[i * IS.fict + j * (IS.Nx - 2 * IS.fict) + k];
-							if (k == 2) uy[i][j] = send_arr[i * IS.fict + j * (IS.Nx - 2 * IS.fict) + k];
-							if (k == 3) rho[i][j] = send_arr[i * IS.fict + j * (IS.Nx - 2 * IS.fict) + k];
-						}
-					}
-				}
-			}
-			else if (d == 2) {
-				if (recv_len != 4 * (IS.Ny - 2 * IS.fict) * IS.fict) {
-					std::cerr << "Error in sending" << std::endl;
-				}
-				for (int i = IS.fict; i < IS.Ny - IS.fict; i++) {
-					for (int j = 0; j < IS.fict; j++) {
-						for (int k = 0; k < 4; k++) {
-							if (k == 0) P[i][j] = send_arr[i * (IS.Ny - 2 * IS.fict) + j * IS.fict + k];
-							if (k == 1) ux[i][j] = send_arr[i * (IS.Ny - 2 * IS.fict) + j * IS.fict + k];
-							if (k == 2) uy[i][j] = send_arr[i * (IS.Ny - 2 * IS.fict) + j * IS.fict + k];
-							if (k == 3) rho[i][j] = send_arr[i * (IS.Ny - 2 * IS.fict) + j * IS.fict + k];
-						}
-					}
-				}
-			}
-			else if (d == 3) {
-				if (recv_len != 4 * (IS.Nx - 2 * IS.fict) * IS.fict) {
-					std::cerr << "Error in sending" << std::endl;
-				}
-				for (int i = IS.Ny - IS.fict; i < IS.Ny; i++) {
-					for (int j = IS.fict; j < IS.Nx - IS.fict; j++) {
-						for (int k = 0; k < 4; k++) {
-							if (k == 0) P[i][j] = send_arr[i * IS.fict + j * (IS.Nx - 2 * IS.fict) + k];
-							if (k == 1) ux[i][j] = send_arr[i * IS.fict + j * (IS.Nx - 2 * IS.fict) + k];
-							if (k == 2) uy[i][j] = send_arr[i * IS.fict + j * (IS.Nx - 2 * IS.fict) + k];
-							if (k == 3) rho[i][j] = send_arr[i * IS.fict + j * (IS.Nx - 2 * IS.fict) + k];
-						}
-					}
-				}
-			}
-		}
-	}
-}
-
-
-void writeCSV(std::string filename, int iter, vec1d x, vec1d y, vec2d ux, vec2d uy, vec2d P, vec2d rho, double t, int Nx, int Ny, int fict) {
-	std::string name = "CSVs\\";
-	name += filename;
-	name += "\\Iter=";
-	name += std::to_string(iter);
-	name += ".csv";
-
-	std::ofstream outfile(name);
-	std::string tmp;
-	tmp = "Time,X,Y,Rho,P,Ux,Uy\n";
-	outfile << tmp;
-	for (int i = fict; i < Ny - fict; i++) {
-		for (int j = fict; j < Nx - fict; j++) {
-			tmp = "";
-			tmp += std::to_string(t) + ',';
-			tmp += std::to_string(x[j]) + ',';
-			tmp += std::to_string(y[i]) + ',';
-			tmp += std::to_string(rho[i][j]) + ',';
-			tmp += std::to_string(P[i][j]) + ',';
-			tmp += std::to_string(ux[i][j]) + ',';
-			tmp += std::to_string(uy[i][j]) + '\n';
-			outfile << tmp;
-		}
-	}
-	outfile.close();
-}
-
-
-void writeCSV_p(std::string filename, InitialState& IS, int iter, vec1d& xc, vec1d& yc, vec2d& ux, vec2d& uy, vec2d& P, vec2d& rho,
-				double _time, int myrank, MPI_Comm comm) {
-	if (myrank == 0) {
-		if (!fs::exists(out_dir)) {
-			fs::create_directory(out_dir);
-		}
-	}
-	MPI_Barrier(comm);
-
-	std::string name = "CSVs\\";
-	name += filename;
-	name += "\\Iter=";
-	name += std::to_string(iter);
-	name += ".csv";
-
-	std::ostringstream buffer;
-
-	if (myrank == 0) {
-		buffer << (std::to_string(_time) + "\n") << "X,Y,Rho,P,Ux,Uy\n";
-	}
-	for (int i = IS.fict; i < IS.Ny - IS.fict; ++i) {
-		for (int j = IS.fict; j < IS.Nx - IS.fict; ++j) {
-			buffer << xc[i] << "," << yc[j] << "," << rho[i][j] << ',' << P[i][j] << ',' << ux[i][j] << ',' << uy[i][j] << "\n";
-		}
-	}
-
-	std::string local_data = buffer.str();
-	int local_size = local_data.size();
-
-	int offset = 0;
-	MPI_Exscan(&local_size, &offset, 1, MPI_INT, MPI_SUM, comm);
-	MPI_File fh;
-	MPI_File_open(comm, name.c_str(), MPI_MODE_CREATE | MPI_MODE_WRONLY, MPI_INFO_NULL, &fh);
-	MPI_File_write_at_all(fh, offset, local_data.c_str(), local_size, MPI_CHAR, MPI_STATUS_IGNORE);
-	MPI_File_close(&fh);
-}
-
-
 int main(int argc, char* argv[]) {
 	// Godunov_Kolgan_solver_2D();
 
+	/*int px, py;
+	std::cout << px << " " << py;
 	MPI_Status Status;
 	MPI_Request Request;
 	int rank, size;
 	MPI_Init(&argc, &argv);
 	MPI_Comm_size(MPI_COMM_WORLD, &size);
 	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+	mpi_get_px_py(size, 100, 100, &px, &py);
 
-	// global boundary conditions
+	int neighbors[4];
+	*/
+
 	int bound_left = 1, bound_right = 1, bound_down = 0, bound_up = 0;
 	int minmod_type = 1;
 
 	InitialState IS;
-	int px, py;
-	mpi_get_px_py(size, IS.nx, IS.ny, &px, &py);
-	std::cout << "px " << px << "; py " << py << std::endl;
 
-	int neighbors[4]; // 0 - left, 1 - up, 2 - right, 3 - down
-	// -1 - left, -2 - up, -3 - right, -4 - down
-	if (rank == 0) {
-		neighbors[0] = -1;
-		neighbors[1] = py == 1 ? -2 : rank + px;
-		neighbors[2] = px == 1 ? -3 : rank + 1;
-		neighbors[3] = -4;
+	int neighbors[4];
+	for (int i = 0; i < 4; i++) {
+		neighbors[i] = -i - 1;
 	}
-	else if (rank == px - 1) {
-		neighbors[0] = px == 1 ? -1 : rank - 1;
-		neighbors[1] = py == 1 ? -2 : rank + px;
-		neighbors[2] = -3;
-		neighbors[3] = -4;
-	}
-	else if (rank == px * (py - 1)) {
-		neighbors[0] = -1;
-		neighbors[1] = -2;
-		neighbors[2] = px == 1 ? -3 : rank + 1;
-		neighbors[3] = py == 1 ? -4 : rank - px;
-	}
-	else if (rank == px * py - 1) {
-		neighbors[0] = px == 1 ? -1 : rank - 1;
-		neighbors[1] = -2;
-		neighbors[2] = -3;
-		neighbors[3] = py == 1 ? -4 : rank - px;
-	}
-	else if (rank < px) {
-		neighbors[0] = rank - 1;
-		neighbors[1] = rank + px;
-		neighbors[2] = rank + 1;
-		neighbors[3] = -4;
-	}
-	else if (rank % px == 0) {
-		neighbors[0] = -1;
-		neighbors[1] = rank + px;
-		neighbors[2] = rank + 1;
-		neighbors[3] = rank - px;
-	}
-	else if (rank % px == px - 1) {
-		neighbors[0] = rank - 1;
-		neighbors[1] = rank + px;
-		neighbors[2] = -3;
-		neighbors[3] = rank - px;
-	}
-	else if (rank + px > px * py - 1) {
-		neighbors[0] = rank - 1;
-		neighbors[1] = -2;
-		neighbors[2] = rank + 1;
-		neighbors[3] = rank - px;
-	}
-	else {
-		neighbors[0] = rank - 1;
-		neighbors[1] = rank + px;
-		neighbors[2] = rank + 1;
-		neighbors[3] = rank - px;
-	}
-
-
-	int start_x, stop_x;
-	int start_y, stop_y;
-	int rank_x, rank_y;
-	rank_x = rank % px;
-	rank_y = rank / py;
-	start_x = IS.nx / px * rank_x;
-	stop_x = start_x + IS.nx / px;
-	start_y = IS.ny / py * rank_y;
-	stop_y = start_y + IS.ny / py;
-	if (IS.nx % px) {
-		if (rank_x >= px - IS.nx % px) {
-			stop_x += IS.nx % px - (px - 1 - rank_x);
-			start_x += IS.nx % px - 1 - (px - 1 - rank_x);
-		}
-	}
-	if (IS.ny % py) {
-		if (rank_y >= py - IS.ny % py) {
-			stop_y += IS.ny % py - (py - 1 - rank_y);
-			start_y += IS.ny % py - 1 - (py - 1 - rank_y);
-		}
-	}
-	IS.nx = stop_x - start_x;
-	IS.ny = stop_y - start_y;
-	IS.x_start = start_x * IS.hx;
-	IS.x_end = stop_x * IS.hx;
-	IS.y_start = start_y * IS.hy;
-	IS.y_end = stop_y * IS.hy;
-	IS.Nx = IS.nx + 2 * IS.fict;
-	IS.Ny = IS.ny + 2 * IS.fict;
-
 
 	vec1d xc(IS.Nx);
 	vec1d x(IS.Nx + 1);
@@ -1032,22 +792,19 @@ int main(int argc, char* argv[]) {
 	int iterwrite = 100;
 
 	grid(IS, x, y, xc, yc);
-	initial_state(IS.Nx, IS.Ny, IS.gamma, xc, yc, P, ux, uy, rho, mass, Imp_x, Imp_y, rhoe);
+	initial_state(&IS, IS.Nx, IS.Ny, IS.gamma, xc, yc, P, ux, uy, rho, mass, Imp_x, Imp_y, rhoe);
 
-	// writeCSV(filename, iter, xc, yc, ux, uy, P, rho, t_start, IS.Nx, IS.Ny, IS.fict);
-	writeCSV_p(filename, IS, iter, xc, yc, ux, uy, P, rho, t_start, rank, MPI_COMM_WORLD);
+	writeCSV(filename, iter, xc, yc, ux, uy, P, rho, t_start, IS.Nx, IS.Ny, IS.fict);
 
 	while (t_start < IS.t_end && iter < max_Nt) {
 		Godunov_Kolgan_solver_2D_one_step(IS, &t_start, x, y, P, ux, uy, rho, mass, Imp_x, Imp_y, rhoe, 
 			neighbors, bound_left, bound_up, bound_right, bound_down, minmod_type);
 		if (iter % iterwrite == 0) {
-			// writeCSV(filename, iter, xc, yc, ux, uy, P, rho, t_start, IS.Nx, IS.Ny, IS.fict);
-			writeCSV_p(filename, IS, iter, xc, yc, ux, uy, P, rho, t_start, rank, MPI_COMM_WORLD);
+			writeCSV(filename, iter, xc, yc, ux, uy, P, rho, t_start, IS.Nx, IS.Ny, IS.fict);
 		}
 		iter += 1;
 	}
-	//writeCSV(filename, iter, xc, yc, ux, uy, P, rho, t_start, IS.Nx, IS.Ny, IS.fict);
-	writeCSV_p(filename, IS, iter, xc, yc, ux, uy, P, rho, t_start, rank, MPI_COMM_WORLD);
+	writeCSV(filename, iter, xc, yc, ux, uy, P, rho, t_start, IS.Nx, IS.Ny, IS.fict);
 
 	if (t_start >= IS.t_end) {
 		std::cout << "Solve stopped by time\n";

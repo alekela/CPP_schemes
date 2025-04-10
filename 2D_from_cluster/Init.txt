@@ -4,9 +4,9 @@ x_end 1.0;
 y_start 0.0;
 y_end 1.0;
 
-Nx 50;
-Ny 50;
-t_end 2.;
+Nx 200;
+Ny 100;
+t_end 0.2;
 CFL 0.5;
 
 gx 0;
@@ -16,9 +16,9 @@ b_left 0;
 b_right 0;
 b_down 0;
 b_up 0;
-initial 1;
-write_interval 20;
+initial 2;
+write_interval 10;
 max_iter 500;
 
-s_type 4;
-mod_type 3;
+s_type 1;
+mod_type 4;
