@@ -1,0 +1,9 @@
+#!/bin/bash
+#
+#SBATCH --nodes=1
+#SBATCH --tasks-per-node=1
+#SBATCH --job-name=PYvis
+#SBATCH --time=10:00:00
+#SBATCH --output=./out/slurm-%j.out
+
+srun python3 speed_up_graph.py

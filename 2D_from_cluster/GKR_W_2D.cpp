@@ -227,7 +227,7 @@ void Boundary_x(InitialState& IS, vec2d& m, vec2d& impx, vec2d& impy, vec2d& e) 
                 impy[IS.fict - i][j] = impy[IS.fict + i - 1][j];
                 e[IS.fict - i][j] = e[IS.fict + i - 1][j];
             }
-            else if (IS.b_left == 1) {   //free boundery
+            else if (IS.b_left == 1) {   //free bound
                 m[IS.fict - i][j] = m[IS.fict + i - 1][j];
                 impx[IS.fict - i][j] = impx[IS.fict + i - 1][j];
                 impy[IS.fict - i][j] = impy[IS.fict + i - 1][j];
@@ -239,7 +239,7 @@ void Boundary_x(InitialState& IS, vec2d& m, vec2d& impx, vec2d& impy, vec2d& e) 
                 impy[IS.Nx + IS.fict + i - 1][j] = impy[IS.Nx + IS.fict - i][j];
                 e[IS.Nx + IS.fict + i - 1][j] = e[IS.Nx + IS.fict - i][j];
             }
-            else if (IS.b_right == 1) {   //free boundery
+            else if (IS.b_right == 1) {   //free bound
                 m[IS.Nx + IS.fict + i - 1][j] = m[IS.Nx + IS.fict - i][j];
                 impx[IS.Nx + IS.fict + i - 1][j] = impx[IS.Nx + IS.fict - i][j];
                 impy[IS.Nx + IS.fict + i - 1][j] = impy[IS.Nx + IS.fict - i][j];
@@ -259,7 +259,7 @@ void Boundary_y(InitialState& IS, vec2d& m, vec2d& impx, vec2d& impy, vec2d& e) 
                 impy[i][IS.fict - j] = -impy[i][IS.fict + j - 1];
                 e[i][IS.fict - j] = e[i][IS.fict + j - 1];
             }
-            else if (IS.b_down == 1) {   //free boundery
+            else if (IS.b_down == 1) {   //free bound
                 m[i][IS.fict - j] = m[i][IS.fict + j - 1];
                 impx[i][IS.fict - j] = impx[i][IS.fict + j - 1];
                 impy[i][IS.fict - j] = impy[i][IS.fict + j - 1];
@@ -271,7 +271,7 @@ void Boundary_y(InitialState& IS, vec2d& m, vec2d& impx, vec2d& impy, vec2d& e) 
                 impy[i][IS.Ny + IS.fict + j - 1] = -impy[i][IS.Ny + IS.fict - j];
                 e[i][IS.Ny + IS.fict + j - 1] = e[i][IS.Ny + IS.fict - j];
             }
-            else if (IS.b_up == 1) {   //free boundery
+            else if (IS.b_up == 1) {   //free bound
                 m[i][IS.Ny + IS.fict + j - 1] = m[i][IS.Ny + IS.fict - j];
                 impx[i][IS.Ny + IS.fict + j - 1] = impx[i][IS.Ny + IS.fict - j];
                 impy[i][IS.Ny + IS.fict + j - 1] = impy[i][IS.Ny + IS.fict - j];
@@ -482,45 +482,44 @@ void Init(InitialState& IS, vec1d& xc, vec1d& yc, vec2d& p, vec2d& vx, vec2d& vy
     }
 }
 
-//save results in the directory out_dir
-void write_out(InitialState& IS, vec1d& xc, vec1d& yc, vec2d& p, vec2d& vx, vec2d& vy, vec2d& r, vec2d& m, vec2d& impx, vec2d& impy, vec2d& e, vec2d& ei, int _n, double _time, std::string out_dir)
+//save results in the directory filename
+void write_out(InitialState& IS, vec1d& xc, vec1d& yc, vec2d& p, vec2d& vx, vec2d& vy, vec2d& r, vec2d& m, vec2d& impx, vec2d& impy, vec2d& e, vec2d& ei, int iter, double time, std::string filename)
 {
-    if (!fs::exists(out_dir)) {
-        fs::create_directory(out_dir);
+    if (!fs::exists(filename)) {
+        fs::create_directory(filename);
     }
-    std::string file_path = out_dir + "/" + std::to_string(_n) + ".txt";
-    std::ofstream csv;
-    csv.open(file_path);
-    csv << _time << std::endl;
-    csv << "xc;yc;vx;vy;rho;m;p;impx;impy;e;ei\n";
+    std::string outpath = filename + "/" + "Iter=" + std::to_string(iter) + ".txt";
+    std::ofstream outfile;
+    outfile.open(outpath);
+    outfile << "Time: " << time << std::endl;
+    outfile << "X,Y,UX,UY,Rho,P,E\n";
     for(int i = IS.fict; i < IS.Nx + IS.fict; ++i){
         for (int j = IS.fict; j < IS.Ny + IS.fict; ++j) {
-            csv << xc[i] << ";" << yc[j] << ";" << vx[i][j] << ";" << vy[i][j] << ";" << r[i][j] << ";" << m[i][j] << ";" << p[i][j] << ";" << impx[i][j] << ";" << impy[i][j] << ";" << e[i][j] << ';' << ei[i][j] << "\n";
+            outfile << xc[i] << "," << yc[j] << "," << vx[i][j] << "," << vy[i][j] << "," << r[i][j] << "," << p[i][j] << "," << e[i][j] << "\n";
         }
     }
-    csv.close();
+    outfile.close();
 }
 
-void write_out_p(InitialState& IS, vec1d& xc, vec1d& yc, vec2d& p, vec2d& vx, vec2d& vy, vec2d& r, vec2d& m, vec2d& impx, vec2d& impy, vec2d& e, vec2d& ei, int _n, double _time, \
-                 std::string out_dir, int myrank, int size, MPI_Comm comm)
+void write_out_p(InitialState& IS, vec1d& xc, vec1d& yc, vec2d& p, vec2d& vx, vec2d& vy, vec2d& r, vec2d& m, vec2d& impx, vec2d& impy, vec2d& e, vec2d& ei, int iter, double time, \
+                 std::string filename, int myrank, int size, MPI_Comm comm)
 {
     if (myrank == 0) {
-        if (!fs::exists(out_dir)) {
-            fs::create_directory(out_dir);
+        if (!fs::exists(filename)) {
+            fs::create_directory(filename);
         }
     }
     MPI_Barrier(comm);
 
-    std::string file_path = out_dir + "/" + "Iter=" + std::to_string(_n) + ".csv";
+    std::string outpath = filename + "/" + "Iter=" + std::to_string(iter) + ".csv";
     std :: ostringstream buffer;
     
     if (myrank == 0) {
-        buffer << (std::to_string(_time) + "\n") << "xc;yc;vx;vy;rho;m;p;impx;impy;e;ei\n";
+        buffer << ("Time: " + std::to_string(time) + "\n") << "X,Y,UX,UY,Rho,P,E\n";
     }
     for(int i = IS.fict; i < IS.Nx + IS.fict; ++i) {
         for(int j = IS.fict; j < IS.Ny + IS.fict; ++j) {
-            buffer << xc[i] << ";" << yc[j] << ";" << vx[i][j] << ";" << vy[i][j] << ";" << r[i][j] << ";" << m[i][j] << ";" << p[i][j] \
-                    << ";" << impx[i][j] << ";" << impy[i][j] << ";" << e[i][j] << ';' << ei[i][j] << "\n";
+            buffer << xc[i] << "," << yc[j] << "," << vx[i][j] << "," << vy[i][j] << "," << r[i][j] << "," << p[i][j] << "," << e[i][j] << "\n";
         }
     }
     std::string local_data = buffer.str();
@@ -529,7 +528,7 @@ void write_out_p(InitialState& IS, vec1d& xc, vec1d& yc, vec2d& p, vec2d& vx, ve
     int offset = 0;
     MPI_Exscan(&local_size, &offset, 1, MPI_INT, MPI_SUM, comm);
     MPI_File fh;
-    MPI_File_open(comm, file_path.c_str(),MPI_MODE_CREATE | MPI_MODE_WRONLY, MPI_INFO_NULL, &fh);
+    MPI_File_open(comm, outpath.c_str(),MPI_MODE_CREATE | MPI_MODE_WRONLY, MPI_INFO_NULL, &fh);
     MPI_File_write_at_all(fh, offset, local_data.c_str(), local_size, MPI_CHAR, MPI_STATUS_IGNORE);
     MPI_File_close(&fh);
 }
@@ -1126,7 +1125,6 @@ void WENO5(InitialState& IS, vec3d& u, vec3d& L, double dx, double dy) {
 }
 
 void split_proc(int& p, int& px, int& py){
-    //if(isPrime(p)) p--;
     py = std::sqrt(p);
     while (py > 1 && p % py != 0) {
         py--;
@@ -1134,6 +1132,43 @@ void split_proc(int& p, int& px, int& py){
 
     px = p / py;
 }
+
+
+void mpi_get_px_py(int p, int Nx, int Ny, int* px, int* py) {
+    if (p == 1) {
+        (*px) = 1;
+        (*py) = 1;
+    }
+    else {
+        int best_px, best_py;
+        int best_p;
+        int mera = -1;
+        for (int i = 2; i < p + 1; i++) {
+            int first, second;
+            for (int j = 1; j < sqrt(i) + 1; j++) {
+                if (i % j == 0) {
+                    first = j;
+                    second = i / j;
+                }
+            }
+            if (i - abs(second - first) > mera) {
+                mera = i - abs(second - first);
+                best_px = first;
+                best_py = second;
+                best_p = i;
+            }
+        }
+        if ((Nx % best_px) * (Ny % best_py) < (Nx % best_py) * (Ny % best_px)) {
+            (*px) = best_px;
+            (*py) = best_py;
+        }
+        else {
+            (*px) = best_py;
+            (*py) = best_px;
+        }
+    }
+}
+
 
 void split_plane(int px, int py, int myrank, int Nx, int Ny, int& Nx_proc, int& Ny_proc, int& Nx_start, int& Nx_end, int& Ny_start, int& Ny_end){
     int base_x = Nx / px;
@@ -1149,6 +1184,7 @@ void split_plane(int px, int py, int myrank, int Nx, int Ny, int& Nx_proc, int& 
     Ny_start = myrank / px * base_y + std::min(myrank / px, remainder_y);
 	Ny_end = Ny_start + Ny_proc;
 }
+
 
 void send_vec2(vec2d& data, int rows, int cols, int receiver, int tag, MPI_Comm comm) {
     vec1d flat_data(rows * cols);
@@ -1176,8 +1212,10 @@ vec2d recv_vec2(int rows, int cols, int sender, int tag, MPI_Comm comm, MPI_Stat
 
 void exchange_data(InitialState& IS, int myrank, int px, int py, vec2d& m, vec2d& impx, vec2d& impy, vec2d& e, vec2d& buff_x, vec2d& buff_y, MPI_Comm comm, MPI_Status& Status){
     // X sending
-    if((myrank % px) % 2 != 0){
-        if((myrank % px) > 0){
+    int my_px = myrank % px;
+    int my_py = myrank / px;
+    if(my_px % 2 != 0){
+        if(my_px > 0){
             for(int i = 0; i < IS.fict; i++){
                 for(int j = 0; j < IS.Ny + 2 * IS.fict; j++){
                     buff_x[i][j] = m[i + IS.fict][j];
@@ -1188,7 +1226,7 @@ void exchange_data(InitialState& IS, int myrank, int px, int py, vec2d& m, vec2d
             }
             send_vec2(buff_x, 4 * IS.fict, (IS.Ny + 2 * IS.fict), myrank - 1, 0, comm);
         }
-        if((myrank % px) > 0){
+        if(my_px > 0){
             buff_x = recv_vec2(4 * IS.fict, IS.Ny + 2 * IS.fict, myrank - 1, 0, comm, Status);
             for(int i = 0; i < IS.fict; i ++){
                 for(int j = 0; j < IS.Ny + 2 * IS.fict; j++){
@@ -1199,7 +1237,7 @@ void exchange_data(InitialState& IS, int myrank, int px, int py, vec2d& m, vec2d
                 }
             }
         }
-        if((myrank % px) < px - 1){
+        if(my_px < px - 1){
             buff_x = recv_vec2(4 * IS.fict, IS.Ny + 2 * IS.fict, myrank + 1, 0, comm, Status);
             for(int i = 0; i < IS.fict; i ++){
                 for(int j = 0; j < IS.Ny + 2 * IS.fict; j++){
@@ -1210,7 +1248,7 @@ void exchange_data(InitialState& IS, int myrank, int px, int py, vec2d& m, vec2d
                 }
             }
         }
-        if((myrank % px) < px - 1){
+        if(my_px < px - 1){
             for(int i = 0; i < IS.fict; i ++){
                 for(int j = 0; j < IS.Ny + 2 * IS.fict; j++){
                     buff_x[i][j] = m[IS.Nx + i][j];
@@ -1222,8 +1260,8 @@ void exchange_data(InitialState& IS, int myrank, int px, int py, vec2d& m, vec2d
             send_vec2(buff_x, 4 * IS.fict, (IS.Ny + 2 * IS.fict), myrank + 1, 0, comm);    
         }
     }
-    if((myrank % px) % 2 == 0){
-        if((myrank % px) < px - 1){
+    if(my_px % 2 == 0){
+        if(my_px < px - 1){
             buff_x = recv_vec2(4 * IS.fict, IS.Ny + 2 * IS.fict, myrank + 1, 0, comm, Status);
             for(int i = 0; i < IS.fict; i ++){
                 for(int j = 0; j < IS.Ny + 2 * IS.fict; j++){
@@ -1234,7 +1272,7 @@ void exchange_data(InitialState& IS, int myrank, int px, int py, vec2d& m, vec2d
                 }
             }
         }
-        if((myrank % px) < px - 1){
+        if(my_px < px - 1){
             for(int i = 0; i < IS.fict; i ++){
                 for(int j = 0; j < IS.Ny + 2 * IS.fict; j++){
                     buff_x[i][j] = m[IS.Nx + i][j];
@@ -1245,7 +1283,7 @@ void exchange_data(InitialState& IS, int myrank, int px, int py, vec2d& m, vec2d
             }
             send_vec2(buff_x, 4 * IS.fict, (IS.Ny + 2 * IS.fict), myrank + 1, 0, comm); 
         }
-        if((myrank % px) > 0){
+        if(my_px > 0){
             for(int i = 0; i < IS.fict; i ++){
                 for(int j = 0; j < IS.Ny + 2 * IS.fict; j++){
                     buff_x[i][j] = m[i + IS.fict][j];
@@ -1256,7 +1294,7 @@ void exchange_data(InitialState& IS, int myrank, int px, int py, vec2d& m, vec2d
             }
             send_vec2(buff_x, 4 * IS.fict, (IS.Ny + 2 * IS.fict), myrank - 1, 0, comm);
         }
-        if((myrank % px) > 0){
+        if(my_px > 0){
             buff_x = recv_vec2(4 * IS.fict, IS.Ny + 2 * IS.fict, myrank - 1, 0, comm, Status);
             for(int i = 0; i < IS.fict; i ++){
                 for(int j = 0; j < IS.Ny + 2 * IS.fict; j++){
@@ -1270,8 +1308,8 @@ void exchange_data(InitialState& IS, int myrank, int px, int py, vec2d& m, vec2d
     }
 
     // Y sending
-    if((myrank / px) % 2 != 0){
-        if((myrank / px) > 0){
+    if(my_py % 2 != 0){
+        if(my_py > 0){
             for(int i = 0; i < IS.fict; i++){
                 for(int j = 0; j < IS.Nx + 2 * IS.fict; j++){
                     buff_y[i][j] = m[j][i + IS.fict];
@@ -1282,7 +1320,7 @@ void exchange_data(InitialState& IS, int myrank, int px, int py, vec2d& m, vec2d
             }
             send_vec2(buff_y, 4 * IS.fict, IS.Nx + 2 * IS.fict, myrank - px, 1, comm);
         }
-        if((myrank / px) > 0){
+        if(my_py > 0){
             buff_y = recv_vec2(4 * IS.fict, IS.Nx + 2 * IS.fict, myrank - px, 1, comm, Status);
             for(int i = 0; i < IS.fict; i++){
                 for(int j = 0; j < IS.Nx + 2 * IS.fict; j++){
@@ -1293,7 +1331,7 @@ void exchange_data(InitialState& IS, int myrank, int px, int py, vec2d& m, vec2d
                 }
             }
         }
-        if((myrank / px) < py - 1){
+        if(my_py < py - 1){
             buff_y = recv_vec2(4 * IS.fict, IS.Nx + 2 * IS.fict, myrank + px, 1, comm, Status);
             for(int i = 0; i < IS.fict; i++){
                 for(int j = 0; j < IS.Nx + 2 * IS.fict; j++){
@@ -1304,7 +1342,7 @@ void exchange_data(InitialState& IS, int myrank, int px, int py, vec2d& m, vec2d
                 }
             }
         }
-        if((myrank / px) < py - 1){
+        if(my_py < py - 1){
             for(int i = 0; i < IS.fict; i++){
                 for(int j = 0; j < IS.Nx + 2 * IS.fict; j++){
                     buff_y[i][j] = m[j][IS.Ny + i];
@@ -1316,8 +1354,8 @@ void exchange_data(InitialState& IS, int myrank, int px, int py, vec2d& m, vec2d
             send_vec2(buff_y, 4 * IS.fict, IS.Nx + 2 * IS.fict, myrank + px, 1, comm);    
         }
     }
-    if((myrank / px) % 2 == 0){
-        if((myrank / px) < py - 1){
+    if(my_py % 2 == 0){
+        if(my_py < py - 1){
             buff_y = recv_vec2(4 * IS.fict, IS.Nx + 2 * IS.fict, myrank + px, 1, comm, Status);
             for(int i = 0; i < IS.fict; i++){
                 for(int j = 0; j < IS.Nx + 2 * IS.fict; j++){
@@ -1328,7 +1366,7 @@ void exchange_data(InitialState& IS, int myrank, int px, int py, vec2d& m, vec2d
                 }
             }
         }
-        if((myrank / px) < py - 1){
+        if(my_py < py - 1){
             for(int i = 0; i < IS.fict; i++){
                 for(int j = 0; j < IS.Nx + 2 * IS.fict; j++){
                     buff_y[i][j] = m[j][IS.Ny + i];
@@ -1339,7 +1377,7 @@ void exchange_data(InitialState& IS, int myrank, int px, int py, vec2d& m, vec2d
             }
             send_vec2(buff_y, 4 * IS.fict, IS.Nx + 2 * IS.fict, myrank + px, 1, comm); 
         }
-        if((myrank / px) > 0){
+        if(my_py > 0){
             for(int i = 0; i < IS.fict; i++){
                 for(int j = 0; j < IS.Nx + 2 * IS.fict; j++){
                     buff_y[i][j] = m[j][i + IS.fict];
@@ -1350,7 +1388,7 @@ void exchange_data(InitialState& IS, int myrank, int px, int py, vec2d& m, vec2d
             }
             send_vec2(buff_y, 4 * IS.fict, IS.Nx + 2 * IS.fict, myrank - px, 1, comm);
         }
-        if((myrank / px) > 0){
+        if(my_py > 0){
             buff_y = recv_vec2(4 * IS.fict, IS.Nx + 2 * IS.fict, myrank - px, 1, comm, Status);
             for(int i = 0; i < IS.fict; i++){
                 for(int j = 0; j < IS.Nx + 2 * IS.fict; j++){
@@ -1368,6 +1406,7 @@ void Multiproc_solve(InitialState& IS, std::string out_dir, int& myrank, int& si
     MPI_Status Status;
     int px, py;
     split_proc(size, px, py);
+    // mpi_get_px_py(size, IS.Nx, IS.Ny, &px, &py);
     size = px * py;
     
     int Nx_proc, Ny_proc, Nx_start, Nx_end, Ny_start, Ny_end;
@@ -2041,7 +2080,7 @@ int main(int argc, char* argv[]){
 	MPI_Comm_size(MPI_COMM_WORLD, &size);
 	MPI_Comm_rank(MPI_COMM_WORLD, &myrank);
 
-    double begin, end;
+    double t1;
     
     InitialState IS;
 
@@ -2050,46 +2089,42 @@ int main(int argc, char* argv[]){
 	IS.fict = 1;
 
     MPI_Barrier(MPI_COMM_WORLD);
-    begin = MPI_Wtime();
+    t1 = MPI_Wtime();
     Multiproc_solve(IS, "Godunov_2D_p", myrank, size, MPI_COMM_WORLD);
     MPI_Barrier(MPI_COMM_WORLD);
-    end = MPI_Wtime();
-    if(myrank == 0) printf("Godunov_2D_p time: %.5f\n\n", end - begin);
+    if(myrank == 0) printf("Godunov_2D_p time: %.5f\n\n", MPI_Wtime() - t1);
 
 	IS.s_type = 2;
 	IS.fict = 2;
     MPI_Barrier(MPI_COMM_WORLD);
-    begin = MPI_Wtime();
+    t1 = MPI_Wtime();
     Multiproc_solve(IS, "GK_2D_p", myrank, size, MPI_COMM_WORLD);
     MPI_Barrier(MPI_COMM_WORLD);
-    end = MPI_Wtime();
-    if(myrank == 0) printf("GK_2D_p time: %.5f\n\n", end - begin);
+    if(myrank == 0) printf("GK_2D_p time: %.5f\n\n", MPI_Wtime() - t1);
     
 	IS.s_type = 3;
 	IS.fict = 2;
     MPI_Barrier(MPI_COMM_WORLD);
-    begin = MPI_Wtime();
+    t1 = MPI_Wtime();
     Multiproc_solve(IS, "GKR_2D_p", myrank, size, MPI_COMM_WORLD);
     MPI_Barrier(MPI_COMM_WORLD);
-    end = MPI_Wtime();
-    if(myrank == 0) printf("GKR_2D_p time: %.5f\n\n", end - begin);
+    if(myrank == 0) printf("GKR_2D_p time: %.5f\n\n", MPI_Wtime() - t1);
 
 	IS.s_type = 4;
 	IS.fict = 3;
     MPI_Barrier(MPI_COMM_WORLD);
-    begin = MPI_Wtime();
+    t1 = MPI_Wtime();
     Multiproc_solve(IS, "WENO_2D_p", myrank, size, MPI_COMM_WORLD);
     MPI_Barrier(MPI_COMM_WORLD);
-    end = MPI_Wtime();
-    if(myrank == 0) printf("WENO_2D_p time: %.5f\n\n", end - begin);
+    if(myrank == 0) printf("WENO_2D_p time: %.5f\n\n", MPI_Wtime() - t1);
     
     /*
     if(myrank == 0){
-        begin = MPI_Wtime();
+        t1 = MPI_Wtime();
         read_params(IS, "W.txt");
         Solve(IS, "resultW");
         end = MPI_Wtime();
-        printf("time sequently: %.5f\n\n", end - begin);
+        printf("time sequently: %.5f\n\n", end - t1);
     }
     */
     
