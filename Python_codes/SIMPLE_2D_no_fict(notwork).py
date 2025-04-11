@@ -329,7 +329,8 @@ def SIMPLE():
         print(*i)
     print()
     fig, ax = plt.subplots(1, 1)
-
+    print(X, Y, ux)
+    print(ux)
     c = ax.pcolormesh(X, Y, ux, cmap='jet')
     fig.colorbar(c, ax=ax)
 
