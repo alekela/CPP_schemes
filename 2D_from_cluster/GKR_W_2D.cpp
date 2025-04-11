@@ -483,7 +483,7 @@ void Init(InitialState& IS, vec1d& xc, vec1d& yc, vec2d& p, vec2d& vx, vec2d& vy
 }
 
 //save results in the directory filename
-void write_out(InitialState& IS, vec1d& xc, vec1d& yc, vec2d& p, vec2d& vx, vec2d& vy, vec2d& r, vec2d& m, vec2d& impx, vec2d& impy, vec2d& e, vec2d& ei, int iter, double time, std::string filename)
+void writeCSV(InitialState& IS, vec1d& xc, vec1d& yc, vec2d& p, vec2d& vx, vec2d& vy, vec2d& r, vec2d& m, vec2d& impx, vec2d& impy, vec2d& e, vec2d& ei, int iter, double time, std::string filename)
 {
     if (!fs::exists(filename)) {
         fs::create_directory(filename);
@@ -501,7 +501,7 @@ void write_out(InitialState& IS, vec1d& xc, vec1d& yc, vec2d& p, vec2d& vx, vec2
     outfile.close();
 }
 
-void write_out_p(InitialState& IS, vec1d& xc, vec1d& yc, vec2d& p, vec2d& vx, vec2d& vy, vec2d& r, vec2d& m, vec2d& impx, vec2d& impy, vec2d& e, vec2d& ei, int iter, double time, \
+void writeCSV_p(InitialState& IS, vec1d& xc, vec1d& yc, vec2d& p, vec2d& vx, vec2d& vy, vec2d& r, vec2d& m, vec2d& impx, vec2d& impy, vec2d& e, vec2d& ei, int iter, double time, \
                  std::string filename, int myrank, int size, MPI_Comm comm)
 {
     if (myrank == 0) {
@@ -1500,7 +1500,7 @@ void Multiproc_solve(InitialState& IS, std::string out_dir, int& myrank, int& si
             fs::remove_all(out_dir);
         }
     }
-    write_out_p(params_proc, xc, yc, p, vx, vy, r, m, impx, impy, e, ei, step, time, out_dir, myrank, size, comm);
+    writeCSV_p(params_proc, xc, yc, p, vx, vy, r, m, impx, impy, e, ei, step, time, out_dir, myrank, size, comm);
     
     while (time < params_proc.t_end) {
         dt = get_dt(params_proc, x, y, m, impx, impy, e);
@@ -1745,7 +1745,7 @@ void Multiproc_solve(InitialState& IS, std::string out_dir, int& myrank, int& si
 
         if (step % params_proc.write_interval == 0) {
             calc_ei(params_proc, p, r, ei);
-            write_out_p(params_proc, xc, yc, p, vx, vy, r, m, impx, impy, e, ei, step, time, out_dir, myrank, size, comm);
+            writeCSV_p(params_proc, xc, yc, p, vx, vy, r, m, impx, impy, e, ei, step, time, out_dir, myrank, size, comm);
         }
     }
 }
@@ -1825,7 +1825,7 @@ void Solve(InitialState& IS, std::string out_dir){
     if (fs::exists(out_dir)) {
         fs::remove_all(out_dir);
     }
-    write_out(IS, xc, yc, p, vx, vy, r, m, impx, impy, e, ei, step, time, out_dir);
+    writeCSV(IS, xc, yc, p, vx, vy, r, m, impx, impy, e, ei, step, time, out_dir);
 
     while (time < IS.t_end) {
         dt = get_dt(IS, x, y, m, impx, impy, e);  // time step
@@ -2069,7 +2069,7 @@ void Solve(InitialState& IS, std::string out_dir){
 
         if (step % IS.write_interval == 0) {
             calc_ei(IS, p, r, ei);
-            write_out(IS, xc, yc, p, vx, vy, r, m, impx, impy, e, ei, step, time, out_dir);
+            writeCSV(IS, xc, yc, p, vx, vy, r, m, impx, impy, e, ei, step, time, out_dir);
         }
     }
 }
