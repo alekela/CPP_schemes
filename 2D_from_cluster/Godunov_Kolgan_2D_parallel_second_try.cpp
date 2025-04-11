@@ -1,3 +1,5 @@
+#define _SILENCE_EXPERIMENTAL_FILESYSTEM_DEPRECATION_WARNING
+
 #include <iostream>
 #include <cmath>
 #include <algorithm>
@@ -5,14 +7,13 @@
 #include <fstream>
 #include <sstream>
 #include <string>
-#include <filesystem>
+#include <experimental/filesystem>
 #include <stdio.h>
 #include <stdlib.h>
 // #include <mpi.h>
 #include <unordered_map>
 
-
-namespace fs = std::filesystem;
+namespace fs = std::experimental::filesystem;
 typedef std::vector<double> vec1d;
 typedef std::vector<vec1d> vec2d;
 typedef std::vector<vec2d> vec3d;
@@ -88,8 +89,8 @@ void init_params(InitialState& IS) {
     IS.y_start = 0.;
     IS.y_end = 1.;
 
-    IS.nx = 100;
-    IS.ny = 100;
+    IS.nx = 10;
+    IS.ny = 5;
     IS.t_end = 0.15;
     IS.CFL = 0.5;
     IS.hx = (IS.x_end - IS.x_start) / IS.nx;
@@ -103,11 +104,11 @@ void init_params(InitialState& IS) {
     IS.write_interval = 10;
     IS.max_iter = 1000;
 
-    IS.s_type = 1; // 1 - Godunov, 2 - Kolgan, 3 - Rodionov, 4 - WENO
+    IS.s_type = 3; // 1 - Godunov, 2 - Kolgan, 3 - Rodionov, 4 - WENO
     IS.mod_type = 3;
     if (IS.s_type == 1) IS.fict = 1;
     else if (IS.s_type == 2 || IS.s_type == 3) IS.fict = 2;
-    else if (IS.s_type == 4) IS.fict = 5;
+    else if (IS.s_type == 4) IS.fict = 4;
     else {
         IS.s_type = 1;
         IS.fict = 1;
@@ -130,8 +131,8 @@ void cons_to_noncons(InitialState& params, double& p, double& vx, double& vy, do
 }
 
 void cons_to_noncons(InitialState& params, vec2d& p, vec2d& vx, vec2d& vy, vec2d& r, vec2d& m, vec2d& impx, vec2d& impy, vec2d& e) {
-    for (int i = 0; i < params.Nx + 2 * params.fict; ++i) {
-        for (int j = 0; j < params.Ny + 2 * params.fict; ++j) {
+    for (int i = 0; i < params.Ny; ++i) {
+        for (int j = 0; j < params.Nx; ++j) {
             cons_to_noncons(params, p[i][j], vx[i][j], vy[i][j], r[i][j], m[i][j], impx[i][j], impy[i][j], e[i][j]);
         }
     }
@@ -147,8 +148,8 @@ void noncons_to_cons(InitialState& params, double& p, double& vx, double& vy, do
 
 //calculate internal energy
 void calc_ei(InitialState& params, vec2d& p, vec2d& r, vec2d& ei) {
-    for (int i = 0; i < params.Nx + 2 * params.fict; ++i) {
-        for (int j = 0; j < params.Ny + 2 * params.fict; ++j) {
+    for (int i = 0; i < params.Ny; ++i) {
+        for (int j = 0; j < params.Nx; ++j) {
             ei[i][j] = p[i][j] / ((params.gamma - 1.) * r[i][j]);
         }
     }
@@ -161,64 +162,60 @@ double calc_c(double gamma, double p, double r) {
 
 //build x grid
 void x_grid(InitialState& params, vec1d& xc, vec1d& x) {
-    double dx;
-    dx = (params.x_end - params.x_start) / params.Nx;
-    for (int i = 0; i < params.Nx + 1 + 2 * params.fict; ++i) {
-        x[i] = params.x_start + (i - params.fict) * dx;
+    for (int i = 0; i < params.Nx + 1; ++i) {
+        x[i] = params.x_start + (i - params.fict) * params.hx;
     }
-    for (int i = 0; i < params.Nx + 2 * params.fict; ++i) {
+    for (int i = 0; i < params.Nx; ++i) {
         xc[i] = 0.5 * (x[i] + x[i + 1]);
     }
 }
 
 //build y grid
 void y_grid(InitialState& params, vec1d& yc, vec1d& y) {
-    double dy;
-    dy = (params.y_end - params.y_start) / params.Ny;
-    for (int i = 0; i < params.Ny + 1 + 2 * params.fict; ++i) {
-        y[i] = params.y_start + (i - params.fict) * dy;
+    for (int i = 0; i < params.Ny + 1; ++i) {
+        y[i] = params.y_start + (i - params.fict) * params.hy;
     }
-    for (int i = 0; i < params.Ny + 2 * params.fict; ++i) {
+    for (int i = 0; i < params.Ny; ++i) {
         yc[i] = 0.5 * (y[i] + y[i + 1]);
     }
 }
 
-//boundary X
-void Boundary_x(InitialState& params, vec2d& m, vec2d& impx, vec2d& impy, vec2d& e) {
+//boundary Y
+void Boundary_y(InitialState& params, vec2d& m, vec2d& impx, vec2d& impy, vec2d& e) {
     for (int i = 1; i <= params.fict; ++i) {
-        for (int j = 0; j < params.Ny + 2 * params.fict; ++j) {
+        for (int j = 0; j < params.Nx; ++j) {
             if (params.b_left == 0) {   //wall
                 m[params.fict - i][j] = m[params.fict + i - 1][j];
                 impx[params.fict - i][j] = -impx[params.fict + i - 1][j];
                 impy[params.fict - i][j] = impy[params.fict + i - 1][j];
                 e[params.fict - i][j] = e[params.fict + i - 1][j];
             }
-            else if (params.b_left == 1) {   //free boundery
+            else if (params.b_left == 1) {   //free boundary
                 m[params.fict - i][j] = m[params.fict + i - 1][j];
                 impx[params.fict - i][j] = impx[params.fict + i - 1][j];
                 impy[params.fict - i][j] = impy[params.fict + i - 1][j];
                 e[params.fict - i][j] = e[params.fict + i - 1][j];
             }
             if (params.b_right == 0) {   //wall
-                m[params.Nx + params.fict + i - 1][j] = m[params.Nx + params.fict - i][j];
-                impx[params.Nx + params.fict + i - 1][j] = -impx[params.Nx + params.fict - i][j];
-                impy[params.Nx + params.fict + i - 1][j] = impy[params.Nx + params.fict - i][j];
-                e[params.Nx + params.fict + i - 1][j] = e[params.Nx + params.fict - i][j];
+                m[params.Ny - params.fict + i - 1][j] = m[params.Ny - params.fict - i][j];
+                impx[params.Ny - params.fict + i - 1][j] = -impx[params.Ny - params.fict - i][j];
+                impy[params.Ny - params.fict + i - 1][j] = impy[params.Ny - params.fict - i][j];
+                e[params.Ny - params.fict + i - 1][j] = e[params.Ny - params.fict - i][j];
             }
-            else if (params.b_right == 1) {   //free boundery
-                m[params.Nx + params.fict + i - 1][j] = m[params.Nx + params.fict - i][j];
-                impx[params.Nx + params.fict + i - 1][j] = impx[params.Nx + params.fict - i][j];
-                impy[params.Nx + params.fict + i - 1][j] = impy[params.Nx + params.fict - i][j];
-                e[params.Nx + params.fict + i - 1][j] = e[params.Nx + params.fict - i][j];
+            else if (params.b_right == 1) {   //free boundary
+                m[params.Ny - params.fict + i - 1][j] = m[params.Ny - params.fict - i][j];
+                impx[params.Ny - params.fict + i - 1][j] = impx[params.Ny - params.fict - i][j];
+                impy[params.Ny - params.fict + i - 1][j] = impy[params.Ny - params.fict - i][j];
+                e[params.Ny - params.fict + i - 1][j] = e[params.Ny - params.fict - i][j];
             }
         }
     }
 }
 
-//boundary Y
-void Boundary_y(InitialState& params, vec2d& m, vec2d& impx, vec2d& impy, vec2d& e) {
+//boundary X
+void Boundary_x(InitialState& params, vec2d& m, vec2d& impx, vec2d& impy, vec2d& e) {
     for (int j = 1; j <= params.fict; ++j) {
-        for (int i = 0; i < params.Nx + 2 * params.fict; ++i) {
+        for (int i = 0; i < params.Ny; ++i) {
             if (params.b_down == 0) {   //wall
                 m[i][params.fict - j] = m[i][params.fict + j - 1];
                 impx[i][params.fict - j] = impx[i][params.fict + j - 1];
@@ -232,16 +229,16 @@ void Boundary_y(InitialState& params, vec2d& m, vec2d& impx, vec2d& impy, vec2d&
                 e[i][params.fict - j] = e[i][params.fict + j - 1];
             }
             if (params.b_up == 0) {   //wall
-                m[i][params.Ny + params.fict + j - 1] = m[i][params.Ny + params.fict - j];
-                impx[i][params.Ny + params.fict + j - 1] = impx[i][params.Ny + params.fict - j];
-                impy[i][params.Ny + params.fict + j - 1] = -impy[i][params.Ny + params.fict - j];
-                e[i][params.Ny + params.fict + j - 1] = e[i][params.Ny + params.fict - j];
+                m[i][params.Nx - params.fict + j - 1] = m[i][params.Nx - params.fict - j];
+                impx[i][params.Nx - params.fict + j - 1] = impx[i][params.Nx - params.fict - j];
+                impy[i][params.Nx - params.fict + j - 1] = -impy[i][params.Nx - params.fict - j];
+                e[i][params.Nx - params.fict + j - 1] = e[i][params.Nx - params.fict - j];
             }
             else if (params.b_up == 1) {   //free boundery
-                m[i][params.Ny + params.fict + j - 1] = m[i][params.Ny + params.fict - j];
-                impx[i][params.Ny + params.fict + j - 1] = impx[i][params.Ny + params.fict - j];
-                impy[i][params.Ny + params.fict + j - 1] = impy[i][params.Ny + params.fict - j];
-                e[i][params.Ny + params.fict + j - 1] = e[i][params.Ny + params.fict - j];
+                m[i][params.Nx - params.fict + j - 1] = m[i][params.Nx - params.fict - j];
+                impx[i][params.Nx - params.fict + j - 1] = impx[i][params.Nx - params.fict - j];
+                impy[i][params.Nx - params.fict + j - 1] = impy[i][params.Nx - params.fict - j];
+                e[i][params.Nx - params.fict + j - 1] = e[i][params.Nx - params.fict - j];
             }
         }
     }
@@ -253,11 +250,11 @@ double get_dt(InitialState& params, vec1d& x, vec1d& y, vec2d& m, vec2d& impx, v
     double p, vx, vy, r, c;
     double c_step;
     double CFL = params.CFL;
-    for (int i = params.fict; i < params.Nx + params.fict; ++i) {
-        for (int j = params.fict; j < params.Ny + params.fict; ++j) {
+    for (int i = params.fict; i < params.Ny - params.fict; ++i) {
+        for (int j = params.fict; j < params.Nx - params.fict; ++j) {
             cons_to_noncons(params, p, vx, vy, r, m[i][j], impx[i][j], impy[i][j], e[i][j]);
             c = calc_c(params.gamma, p, r);
-            c_step = std::min(CFL * (x[i + 1] - x[i]) / (std::fabs(vx) + c), CFL * (y[j + 1] - y[j]) / (std::fabs(vy) + c));
+            c_step = std::min(CFL * (x[j + 1] - x[j]) / (std::fabs(vx) + c), CFL * (y[i + 1] - y[i]) / (std::fabs(vy) + c));
             if (c_step < new_step) {
                 new_step = c_step;
             }
@@ -293,9 +290,9 @@ void Soda(InitialState& params, vec1d& xc, vec1d& yc, vec2d& p, vec2d& vx, vec2d
     double p2 = 0.1;
     double r2 = 0.125;
 
-    for (int i = 0; i < params.Nx + 2 * params.fict; ++i) {
-        for (int j = 0; j < params.Ny + 2 * params.fict; ++j) {
-            if (xc[i] <= 0.5) {
+    for (int i = 0; i < params.Ny; ++i) {
+        for (int j = 0; j < params.Nx; ++j) {
+            if (xc[j] <= 0.5) {
                 r[i][j] = r1;
                 p[i][j] = p1;
                 vx[i][j] = 0.;
@@ -322,9 +319,9 @@ void Gelmgolc(InitialState& params, vec1d& xc, vec1d& yc, vec2d& p, vec2d& vx, v
     double vx2 = 0.;
     double vy2 = -0.5;
 
-    for (int i = 0; i < params.Nx + 2 * params.fict; ++i) {
-        for (int j = 0; j < params.Ny + 2 * params.fict; ++j) {
-            if (xc[i] <= 0.5) {
+    for (int i = 0; i < params.Ny; ++i) {
+        for (int j = 0; j < params.Nx; ++j) {
+            if (xc[j] <= 0.5) {
                 r[i][j] = r1;
                 p[i][j] = p1;
                 vx[i][j] = vx1;
@@ -354,9 +351,9 @@ void Bubble(InitialState& params, vec1d& xc, vec1d& yc, vec2d& p, vec2d& vx, vec
     vy2 = 0;
     r2 = 0.125;
 
-    for (int i = 0; i < params.Nx + 2 * params.fict; ++i) {
-        for (int j = 0; j < params.Ny + 2 * params.fict; ++j) {
-            if (pow((xc[i] - 0.5), 2.) + pow((yc[j] - 0.5), 2.) < pow(R, 2.)) {
+    for (int i = 0; i < params.Ny; ++i) {
+        for (int j = 0; j < params.Nx; ++j) {
+            if (pow((xc[j] - 0.5), 2.) + pow((yc[i] - 0.5), 2.) < pow(R, 2.)) {
                 p[i][j] = p1;
                 vx[i][j] = vx1;
                 vy[i][j] = vy1;
@@ -386,9 +383,9 @@ void Explosion(InitialState& params, vec1d& xc, vec1d& yc, vec2d& p, vec2d& vx, 
     vy2 = 0.;
     r2 = 0.125;
 
-    for (int i = 0; i < params.Nx + 2 * params.fict; ++i) {
-        for (int j = 0; j < params.Ny + 2 * params.fict; ++j) {
-            if (pow((xc[i] - 0.5), 2.) + pow((yc[j] - 0.5), 2.) < pow(R, 2.)) {
+    for (int i = 0; i < params.Ny; ++i) {
+        for (int j = 0; j < params.Nx; ++j) {
+            if (pow((xc[j] - 0.5), 2.) + pow((yc[i] - 0.5), 2.) < pow(R, 2.)) {
                 p[i][j] = p1;
                 vx[i][j] = vx1;
                 vy[i][j] = vy1;
@@ -469,7 +466,7 @@ void writeCSV_p(std::string filename, InitialState& IS, int iter, vec1d& xc, vec
     }
     for (int i = IS.fict; i < IS.Ny - IS.fict; ++i) {
         for (int j = IS.fict; j < IS.Nx - IS.fict; ++j) {
-            buffer << xc[i] << "," << yc[j] << "," << rho[i][j] << ',' << P[i][j] << ',' << ux[i][j] << ',' << uy[i][j] << "\n";
+            buffer << xc[i] << "," << yc[i] << "," << rho[i][j] << ',' << P[i][j] << ',' << ux[i][j] << ',' << uy[i][j] << "\n";
         }
     }
 
@@ -869,8 +866,8 @@ void Kolgan_right(double qi, double qi_1, double qi1, double qi2, double xi, dou
 
 void calc_Fx(InitialState& params, vec3d& u, vec3d& F) {
     double r, vx, vy, p, e;
-    for (int i = 0; i < params.Nx + 2 * params.fict; i++) {
-        for (int j = 0; j < params.Ny + 2 * params.fict; j++) {
+    for (int i = 0; i < params.Ny; i++) {
+        for (int j = 0; j < params.Nx; j++) {
             r = u[0][i][j];
             vx = u[1][i][j] / r;
             vy = u[2][i][j] / r;
@@ -886,8 +883,8 @@ void calc_Fx(InitialState& params, vec3d& u, vec3d& F) {
 
 void calc_Fy(InitialState& params, vec3d& u, vec3d& F) {
     double r, vx, vy, p, e;
-    for (int i = 0; i < params.Nx + 2 * params.fict; i++) {
-        for (int j = 0; j < params.Ny + 2 * params.fict; j++) {
+    for (int i = 0; i < params.Ny; i++) {
+        for (int j = 0; j < params.Nx; j++) {
             r = u[0][i][j];
             vx = u[1][i][j] / r;
             vy = u[2][i][j] / r;
@@ -905,8 +902,8 @@ double calc_Ax(InitialState& params, vec3d& u) {
     double new_step = 0.;
     double p, vx, vy, r, e, c;
     double a_step;
-    for (int i = params.fict; i < params.Nx + params.fict; ++i) {
-        for (int j = params.fict; j < params.Ny + params.fict; ++j) {
+    for (int i = params.fict; i < params.Ny - params.fict; ++i) {
+        for (int j = params.fict; j < params.Nx - params.fict; ++j) {
             r = u[0][i][j];
             vx = u[1][i][j] / r;
             vy = u[2][i][j] / r;
@@ -926,8 +923,8 @@ double calc_Ay(InitialState& params, vec3d& u) {
     double new_step = 0.;
     double p, vx, vy, r, e, c;
     double a_step;
-    for (int i = params.fict; i < params.Nx + params.fict; ++i) {
-        for (int j = params.fict; j < params.Ny + params.fict; ++j) {
+    for (int i = params.fict; i < params.Ny - params.fict; ++i) {
+        for (int j = params.fict; j < params.Nx - params.fict; ++j) {
             r = u[0][i][j];
             vx = u[1][i][j] / r;
             vy = u[2][i][j] / r;
@@ -1003,9 +1000,9 @@ void WENO5(InitialState& IS, vec3d& u, vec3d& L, double dx, double dy) {
     vec3d Fx(4, vec2d(IS.Ny, vec1d(IS.Nx)));
     vec3d Fy(4, vec2d(IS.Ny, vec1d(IS.Nx)));
     vec3d Fx_plus(4, vec2d(IS.Ny, vec1d(IS.Nx)));
-    vec3d Fy_plus(4, vec2d(IS.Ny, vec1d(IS.Ny)));
-    vec3d Fx_minus(4, vec2d(IS.Ny, vec1d(IS.Ny)));
-    vec3d Fy_minus(4, vec2d(IS.Ny, vec1d(IS.Ny)));
+    vec3d Fy_plus(4, vec2d(IS.Ny, vec1d(IS.Nx)));
+    vec3d Fx_minus(4, vec2d(IS.Ny, vec1d(IS.Nx)));
+    vec3d Fy_minus(4, vec2d(IS.Ny, vec1d(IS.Nx)));
 
 
     calc_Fx(IS, u, Fx);
@@ -1024,8 +1021,8 @@ void WENO5(InitialState& IS, vec3d& u, vec3d& L, double dx, double dy) {
         }
     }
 
-    vec3d FlowL(4, vec2d(IS.Ny, vec1d(IS.Ny)));
-    vec3d FlowR(4, vec2d(IS.Ny, vec1d(IS.Ny)));
+    vec3d FlowL(4, vec2d(IS.Ny, vec1d(IS.Nx)));
+    vec3d FlowR(4, vec2d(IS.Ny, vec1d(IS.Nx)));
     for (int k = 0; k < 4; k++) {
         for (int i = IS.fict; i < IS.Ny - IS.fict; i++) {
             for (int j = IS.fict; j < IS.Nx - IS.fict; j++) {
@@ -1450,34 +1447,34 @@ void Solve_one_step(InitialState IS, double* t_start, vec1d& xc, vec1d& yc,
     double dt = get_dt(IS, xc, yc, mass, Imp_x, Imp_y, e);
     *t_start += dt;
 
-    vec2d m_new(IS.Ny, vec1d(IS.Ny));
-    vec2d impx_new(IS.Ny, vec1d(IS.Ny));
-    vec2d impy_new(IS.Ny, vec1d(IS.Ny));
-    vec2d e_new(IS.Ny, vec1d(IS.Ny));
+    vec2d m_new(IS.Ny, vec1d(IS.Nx));
+    vec2d impx_new(IS.Ny, vec1d(IS.Nx));
+    vec2d impy_new(IS.Ny, vec1d(IS.Nx));
+    vec2d e_new(IS.Ny, vec1d(IS.Nx));
 
     // for Kolgan/Radionov
-    vec2d m_kolganl(IS.Ny, vec1d(IS.Ny));
-    vec2d impx_kolganl(IS.Ny, vec1d(IS.Ny));
-    vec2d impy_kolganl(IS.Ny, vec1d(IS.Ny));
-    vec2d e_kolganl(IS.Ny, vec1d(IS.Ny));
-    vec2d m_kolganr(IS.Ny, vec1d(IS.Ny));
-    vec2d impx_kolganr(IS.Ny, vec1d(IS.Ny));
-    vec2d impy_kolganr(IS.Ny, vec1d(IS.Ny));
-    vec2d e_kolganr(IS.Ny, vec1d(IS.Ny));
+    vec2d m_kolganl(IS.Ny, vec1d(IS.Nx));
+    vec2d impx_kolganl(IS.Ny, vec1d(IS.Nx));
+    vec2d impy_kolganl(IS.Ny, vec1d(IS.Nx));
+    vec2d e_kolganl(IS.Ny, vec1d(IS.Nx));
+    vec2d m_kolganr(IS.Ny, vec1d(IS.Nx));
+    vec2d impx_kolganr(IS.Ny, vec1d(IS.Nx));
+    vec2d impy_kolganr(IS.Ny, vec1d(IS.Nx));
+    vec2d e_kolganr(IS.Ny, vec1d(IS.Nx));
 
-    vec2d m_kolgand(IS.Ny, vec1d(IS.Ny));
-    vec2d impx_kolgand(IS.Ny, vec1d(IS.Ny));
-    vec2d impy_kolgand(IS.Ny, vec1d(IS.Ny));
-    vec2d e_kolgand(IS.Ny, vec1d(IS.Ny));
-    vec2d m_kolganu(IS.Ny, vec1d(IS.Ny));
-    vec2d impx_kolganu(IS.Ny, vec1d(IS.Ny));
-    vec2d impy_kolganu(IS.Ny, vec1d(IS.Ny));
-    vec2d e_kolganu(IS.Ny, vec1d(IS.Ny));
+    vec2d m_kolgand(IS.Ny, vec1d(IS.Nx));
+    vec2d impx_kolgand(IS.Ny, vec1d(IS.Nx));
+    vec2d impy_kolgand(IS.Ny, vec1d(IS.Nx));
+    vec2d e_kolgand(IS.Ny, vec1d(IS.Nx));
+    vec2d m_kolganu(IS.Ny, vec1d(IS.Nx));
+    vec2d impx_kolganu(IS.Ny, vec1d(IS.Nx));
+    vec2d impy_kolganu(IS.Ny, vec1d(IS.Nx));
+    vec2d e_kolganu(IS.Ny, vec1d(IS.Nx));
 
-    vec2d m05(IS.Ny, vec1d(IS.Ny));
-    vec2d impx05(IS.Ny, vec1d(IS.Ny));
-    vec2d impy05(IS.Ny, vec1d(IS.Ny));
-    vec2d e05(IS.Ny, vec1d(IS.Ny));
+    vec2d m05(IS.Ny, vec1d(IS.Nx));
+    vec2d impx05(IS.Ny, vec1d(IS.Nx));
+    vec2d impy05(IS.Ny, vec1d(IS.Nx));
+    vec2d e05(IS.Ny, vec1d(IS.Nx));
 
     double dm_x, dimpx_x, dimpy_x, de_x;
     double dm_y, dimpx_y, dimpy_y, de_y;
@@ -1491,28 +1488,28 @@ void Solve_one_step(InitialState IS, double* t_start, vec1d& xc, vec1d& yc,
         if (IS.s_type == 2 || IS.s_type == 3) {
             for (int i = IS.fict; i < IS.Ny - IS.fict + 1; ++i) {
                 for (int j = IS.fict; j < IS.Nx - IS.fict + 1; ++j) {
-                    Kolgan_left(mass[i][j], mass[i - 1][j], mass[i - 2][j], mass[i + 1][j], xc[i], xc[i - 1], xc[i - 2], xc[i + 1], m_kolganl[i][j], m_kolganr[i][j], IS.mod_type);
-                    Kolgan_left(Imp_x[i][j], Imp_x[i - 1][j], Imp_x[i - 2][j], Imp_x[i + 1][j], xc[i], xc[i - 1], xc[i - 2], xc[i + 1], impx_kolganl[i][j], impx_kolganr[i][j], IS.mod_type);
-                    Kolgan_left(Imp_y[i][j], Imp_y[i - 1][j], Imp_y[i - 2][j], Imp_y[i + 1][j], xc[i], xc[i - 1], xc[i - 2], xc[i + 1], impy_kolganl[i][j], impy_kolganr[i][j], IS.mod_type);
-                    Kolgan_left(e[i][j], e[i - 1][j], e[i - 2][j], e[i + 1][j], xc[i], xc[i - 1], xc[i - 2], xc[i + 1], e_kolganl[i][j], e_kolganr[i][j], IS.mod_type);
+                    Kolgan_left(mass[i][j], mass[i - 1][j], mass[i - 2][j], mass[i + 1][j], xc[j], xc[j - 1], xc[j - 2], xc[j + 1], m_kolganl[i][j], m_kolganr[i][j], IS.mod_type);
+                    Kolgan_left(Imp_x[i][j], Imp_x[i - 1][j], Imp_x[i - 2][j], Imp_x[i + 1][j], xc[j], xc[j - 1], xc[j - 2], xc[j + 1], impx_kolganl[i][j], impx_kolganr[i][j], IS.mod_type);
+                    Kolgan_left(Imp_y[i][j], Imp_y[i - 1][j], Imp_y[i - 2][j], Imp_y[i + 1][j], xc[j], xc[j - 1], xc[j - 2], xc[j + 1], impy_kolganl[i][j], impy_kolganr[i][j], IS.mod_type);
+                    Kolgan_left(e[i][j], e[i - 1][j], e[i - 2][j], e[i + 1][j], xc[j], xc[j - 1], xc[j - 2], xc[j + 1], e_kolganl[i][j], e_kolganr[i][j], IS.mod_type);
 
                     if (i < IS.Ny - IS.fict) {
-                        Kolgan_right(mass[i][j], mass[i - 1][j], mass[i + 1][j], mass[i + 2][j], xc[i], xc[i - 1], xc[i + 1], xc[i + 2], m_kolganl[i + 1][j], m_kolganr[i + 1][j], IS.mod_type);
-                        Kolgan_right(Imp_x[i][j], Imp_x[i - 1][j], Imp_x[i + 1][j], Imp_x[i + 2][j], xc[i], xc[i - 1], xc[i + 1], xc[i + 2], impx_kolganl[i + 1][j], impx_kolganr[i + 1][j], IS.mod_type);
-                        Kolgan_right(Imp_y[i][j], Imp_y[i - 1][j], Imp_y[i + 1][j], Imp_y[i + 2][j], xc[i], xc[i - 1], xc[i + 1], xc[i + 2], impy_kolganl[i + 1][j], impy_kolganr[i + 1][j], IS.mod_type);
-                        Kolgan_right(e[i][j], e[i - 1][j], e[i + 1][j], e[i + 2][j], xc[i], xc[i - 1], xc[i + 1], xc[i + 2], e_kolganl[i + 1][j], e_kolganr[i + 1][j], IS.mod_type);
+                        Kolgan_right(mass[i][j], mass[i - 1][j], mass[i + 1][j], mass[i + 2][j], xc[j], xc[j - 1], xc[j + 1], xc[j + 2], m_kolganl[i + 1][j], m_kolganr[i + 1][j], IS.mod_type);
+                        Kolgan_right(Imp_x[i][j], Imp_x[i - 1][j], Imp_x[i + 1][j], Imp_x[i + 2][j], xc[j], xc[j - 1], xc[j + 1], xc[j + 2], impx_kolganl[i + 1][j], impx_kolganr[i + 1][j], IS.mod_type);
+                        Kolgan_right(Imp_y[i][j], Imp_y[i - 1][j], Imp_y[i + 1][j], Imp_y[i + 2][j], xc[j], xc[j - 1], xc[j + 1], xc[j + 2], impy_kolganl[i + 1][j], impy_kolganr[i + 1][j], IS.mod_type);
+                        Kolgan_right(e[i][j], e[i - 1][j], e[i + 1][j], e[i + 2][j], xc[j], xc[j - 1], xc[j + 1], xc[j + 2], e_kolganl[i + 1][j], e_kolganr[i + 1][j], IS.mod_type);
                     }
 
-                    Kolgan_left(mass[i][j], mass[i][j - 1], mass[i][j - 2], mass[i][j + 1], yc[j], yc[j - 1], yc[j - 2], yc[j + 1], m_kolgand[i][j], m_kolganu[i][j], IS.mod_type);
-                    Kolgan_left(Imp_x[i][j], Imp_x[i][j - 1], Imp_x[i][j - 2], Imp_x[i][j + 1], yc[j], yc[j - 1], yc[j - 2], yc[j + 1], impx_kolgand[i][j], impx_kolganu[i][j], IS.mod_type);
-                    Kolgan_left(Imp_y[i][j], Imp_y[i][j - 1], Imp_y[i][j - 2], Imp_y[i][j + 1], yc[j], yc[j - 1], yc[j - 2], yc[j + 1], impy_kolgand[i][j], impy_kolganu[i][j], IS.mod_type);
-                    Kolgan_left(e[i][j], e[i][j - 1], e[i][j - 2], e[i][j + 1], yc[j], yc[j - 1], yc[j - 2], yc[j + 1], e_kolgand[i][j], e_kolganu[i][j], IS.mod_type);
+                    Kolgan_left(mass[i][j], mass[i][j - 1], mass[i][j - 2], mass[i][j + 1], yc[i], yc[i - 1], yc[i - 2], yc[i + 1], m_kolgand[i][j], m_kolganu[i][j], IS.mod_type);
+                    Kolgan_left(Imp_x[i][j], Imp_x[i][j - 1], Imp_x[i][j - 2], Imp_x[i][j + 1], yc[i], yc[i - 1], yc[i - 2], yc[i + 1], impx_kolgand[i][j], impx_kolganu[i][j], IS.mod_type);
+                    Kolgan_left(Imp_y[i][j], Imp_y[i][j - 1], Imp_y[i][j - 2], Imp_y[i][j + 1], yc[i], yc[i - 1], yc[i - 2], yc[i + 1], impy_kolgand[i][j], impy_kolganu[i][j], IS.mod_type);
+                    Kolgan_left(e[i][j], e[i][j - 1], e[i][j - 2], e[i][j + 1], yc[i], yc[i - 1], yc[i - 2], yc[i + 1], e_kolgand[i][j], e_kolganu[i][j], IS.mod_type);
 
                     if (j < IS.Nx - IS.fict) {
-                        Kolgan_right(mass[i][j], mass[i][j - 1], mass[i][j + 1], mass[i][j + 2], yc[j], yc[j - 1], yc[j + 1], yc[j + 2], m_kolgand[i][j + 1], m_kolganu[i][j + 1], IS.mod_type);
-                        Kolgan_right(Imp_x[i][j], Imp_x[i][j - 1], Imp_x[i][j + 1], Imp_x[i][j + 2], yc[j], yc[j - 1], yc[j + 1], yc[j + 2], impx_kolgand[i][j + 1], impx_kolganu[i][j + 1], IS.mod_type);
-                        Kolgan_right(Imp_y[i][j], Imp_y[i][j - 1], Imp_y[i][j + 1], Imp_y[i][j + 2], yc[j], yc[j - 1], yc[j + 1], yc[j + 2], impy_kolgand[i][j + 1], impy_kolganu[i][j + 1], IS.mod_type);
-                        Kolgan_right(e[i][j], e[i][j - 1], e[i][j + 1], e[i][j + 2], yc[j], yc[j - 1], yc[j + 1], yc[j + 2], e_kolgand[i][j + 1], e_kolganr[i][j + 1], IS.mod_type);
+                        Kolgan_right(mass[i][j], mass[i][j - 1], mass[i][j + 1], mass[i][j + 2], yc[i], yc[i - 1], yc[i + 1], yc[i + 2], m_kolgand[i][j + 1], m_kolganu[i][j + 1], IS.mod_type);
+                        Kolgan_right(Imp_x[i][j], Imp_x[i][j - 1], Imp_x[i][j + 1], Imp_x[i][j + 2], yc[i], yc[i - 1], yc[i + 1], yc[i + 2], impx_kolgand[i][j + 1], impx_kolganu[i][j + 1], IS.mod_type);
+                        Kolgan_right(Imp_y[i][j], Imp_y[i][j - 1], Imp_y[i][j + 1], Imp_y[i][j + 2], yc[i], yc[i - 1], yc[i + 1], yc[i + 2], impy_kolgand[i][j + 1], impy_kolganu[i][j + 1], IS.mod_type);
+                        Kolgan_right(e[i][j], e[i][j - 1], e[i][j + 1], e[i][j + 2], yc[i], yc[i - 1], yc[i + 1], yc[i + 2], e_kolgand[i][j + 1], e_kolganr[i][j + 1], IS.mod_type);
                     }
                 }
             }
@@ -1525,10 +1522,11 @@ void Solve_one_step(InitialState IS, double* t_start, vec1d& xc, vec1d& yc,
                     cons_flux_y(IS, m_kolganl[i + 1][j], impx_kolganl[i + 1][j], impy_kolganl[i + 1][j], e_kolganl[i + 1][j], Fmr, Fimpxr, Fimpyr, Fer);
                     cons_flux_x(IS, m_kolganu[i][j], impx_kolganu[i][j], impy_kolganu[i][j], e_kolganu[i][j], Fmd, Fimpxd, Fimpyd, Fed);
                     cons_flux_x(IS, m_kolgand[i][j + 1], impx_kolgand[i][j + 1], impy_kolgand[i][j + 1], e_kolgand[i][j + 1], Fmu, Fimpxu, Fimpyu, Feu);
-                    m05[i][j] = mass[i][j] - dt * ((Fmr - Fml) / (xc[i] - xc[i - 1]) + (Fmu - Fmd) / (yc[j] - yc[j - 1]));
-                    impx05[i][j] = Imp_x[i][j] - dt * ((Fimpxr - Fimpxl) / (xc[i] - xc[i - 1]) + (Fimpxu - Fimpxd) / (yc[j] - yc[j - 1]));
-                    impy05[i][j] = Imp_y[i][j] - dt * ((Fimpyr - Fimpyl) / (xc[i] - xc[i - 1]) + (Fimpyu - Fimpyd) / (yc[j] - yc[j - 1]));
-                    e05[i][j] = e[i][j] - dt * ((Fer - Fel) / (xc[i] - xc[i - 1]) + (Feu - Fed) / (yc[j] - yc[j - 1]));
+                    m05[i][j] = mass[i][j] - dt * ((Fmr - Fml) / (xc[j] - xc[j - 1]) + (Fmu - Fmd) / (yc[i] - yc[ - 1]));
+                    m05[i][j] = mass[i][j] - dt * ((Fmr - Fml) / (xc[j] - xc[j - 1]) + (Fmu - Fmd) / (yc[i] - yc[ - 1]));
+                    impx05[i][j] = Imp_x[i][j] - dt * ((Fimpxr - Fimpxl) / (xc[j] - xc[j - 1]) + (Fimpxu - Fimpxd) / (yc[i] - yc[i - 1]));
+                    impy05[i][j] = Imp_y[i][j] - dt * ((Fimpyr - Fimpyl) / (xc[j] - xc[j - 1]) + (Fimpyu - Fimpyd) / (yc[i] - yc[i - 1]));
+                    e05[i][j] = e[i][j] - dt * ((Fer - Fel) / (xc[j] - xc[j - 1]) + (Feu - Fed) / (yc[i] - yc[i - 1]));
                 }
             }
             for (int i = IS.fict; i < IS.Ny - IS.fict + 1; ++i) {
@@ -1724,19 +1722,19 @@ void Solve(InitialState& IS, std::string filename) {
     vec1d yc(IS.Ny);
 
     vec2d P(IS.Ny, vec1d(IS.Nx));
-    vec2d ux(IS.Ny, vec1d(IS.Ny));
-    vec2d uy(IS.Ny, vec1d(IS.Ny));
-    vec2d rho(IS.Ny, vec1d(IS.Ny));
-    vec2d mass(IS.Ny, vec1d(IS.Ny));
-    vec2d Imp_x(IS.Ny, vec1d(IS.Ny));
-    vec2d Imp_y(IS.Ny, vec1d(IS.Ny));
-    vec2d e(IS.Ny, vec1d(IS.Ny));
-    vec2d ei(IS.Ny, vec1d(IS.Ny));
+    vec2d ux(IS.Ny, vec1d(IS.Nx));
+    vec2d uy(IS.Ny, vec1d(IS.Nx));
+    vec2d rho(IS.Ny, vec1d(IS.Nx));
+    vec2d mass(IS.Ny, vec1d(IS.Nx));
+    vec2d Imp_x(IS.Ny, vec1d(IS.Nx));
+    vec2d Imp_y(IS.Ny, vec1d(IS.Nx));
+    vec2d e(IS.Ny, vec1d(IS.Nx));
+    vec2d ei(IS.Ny, vec1d(IS.Nx));
 
     // for WENO
-    std::vector<vec3d> U(4, vec3d(4, vec2d(IS.Ny, vec1d(IS.Ny))));
+    std::vector<vec3d> U(4, vec3d(4, vec2d(IS.Ny, vec1d(IS.Nx))));
     std::vector<vec1d> rk = { {1., 0., 0., 0.}, {1., 0., 0., 1.}, {0.75, 0.25, 0., 0.25}, {1. / 3., 0., 2. / 3., 2. / 3.} };
-    vec3d L(4, vec2d(IS.Ny, vec1d(IS.Ny)));
+    vec3d L(4, vec2d(IS.Ny, vec1d(IS.Nx)));
 
     int step = 0;
     double t_start = 0.;
@@ -1771,19 +1769,19 @@ void Solve_p(InitialState& IS, std::string filename, int size, int myrank) {
     vec1d yc(IS.Ny);
 
     vec2d P(IS.Ny, vec1d(IS.Nx));
-    vec2d ux(IS.Ny, vec1d(IS.Ny));
-    vec2d uy(IS.Ny, vec1d(IS.Ny));
-    vec2d rho(IS.Ny, vec1d(IS.Ny));
-    vec2d mass(IS.Ny, vec1d(IS.Ny));
-    vec2d Imp_x(IS.Ny, vec1d(IS.Ny));
-    vec2d Imp_y(IS.Ny, vec1d(IS.Ny));
-    vec2d e(IS.Ny, vec1d(IS.Ny));
-    vec2d ei(IS.Ny, vec1d(IS.Ny));
+    vec2d ux(IS.Ny, vec1d(IS.Nx));
+    vec2d uy(IS.Ny, vec1d(IS.Nx));
+    vec2d rho(IS.Ny, vec1d(IS.Nx));
+    vec2d mass(IS.Ny, vec1d(IS.Nx));
+    vec2d Imp_x(IS.Ny, vec1d(IS.Nx));
+    vec2d Imp_y(IS.Ny, vec1d(IS.Nx));
+    vec2d e(IS.Ny, vec1d(IS.Nx));
+    vec2d ei(IS.Ny, vec1d(IS.Nx));
 
     // for WENO
-    std::vector<vec3d> U(4, vec3d(4, vec2d(IS.Ny, vec1d(IS.Ny))));
+    std::vector<vec3d> U(4, vec3d(4, vec2d(IS.Ny, vec1d(IS.Nx))));
     std::vector<vec1d> rk = { {1., 0., 0., 0.}, {1., 0., 0., 1.}, {0.75, 0.25, 0., 0.25}, {1. / 3., 0., 2. / 3., 2. / 3.} };
-    vec3d L(4, vec2d(IS.Ny, vec1d(IS.Ny)));
+    vec3d L(4, vec2d(IS.Ny, vec1d(IS.Nx)));
 
     int step = 0;
     double t_start = 0.;
@@ -1815,7 +1813,7 @@ int main(int argc, char* argv[]) {
     // MPI_Init(&argc, &argv);
     // MPI_Comm_size(MPI_COMM_WORLD, &size);
     // MPI_Comm_rank(MPI_COMM_WORLD, &myrank);
-
+    myrank = 0;
     double begin, end;
 
     InitialState IS;
