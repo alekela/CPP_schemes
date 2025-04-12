@@ -483,7 +483,7 @@ void Init(InitialState& IS, vec1d& xc, vec1d& yc, vec2d& p, vec2d& vx, vec2d& vy
 }
 
 //save results in the directory filename
-void writeCSV(InitialState& IS, vec1d& xc, vec1d& yc, vec2d& p, vec2d& vx, vec2d& vy, vec2d& r, vec2d& m, vec2d& impx, vec2d& impy, vec2d& e, vec2d& ei, int iter, double time, std::string filename)
+void write_out(InitialState& IS, vec1d& xc, vec1d& yc, vec2d& p, vec2d& vx, vec2d& vy, vec2d& r, vec2d& m, vec2d& impx, vec2d& impy, vec2d& e, vec2d& ei, int iter, double time, std::string filename)
 {
     if (!fs::exists(filename)) {
         fs::create_directory(filename);
@@ -501,7 +501,7 @@ void writeCSV(InitialState& IS, vec1d& xc, vec1d& yc, vec2d& p, vec2d& vx, vec2d
     outfile.close();
 }
 
-void writeCSV_p(InitialState& IS, vec1d& xc, vec1d& yc, vec2d& p, vec2d& vx, vec2d& vy, vec2d& r, vec2d& m, vec2d& impx, vec2d& impy, vec2d& e, vec2d& ei, int iter, double time, \
+void write_out_p(InitialState& IS, vec1d& xc, vec1d& yc, vec2d& p, vec2d& vx, vec2d& vy, vec2d& r, vec2d& m, vec2d& impx, vec2d& impy, vec2d& e, vec2d& ei, int iter, double time, \
                  std::string filename, int myrank, int size, MPI_Comm comm)
 {
     if (myrank == 0) {
@@ -929,20 +929,6 @@ void Kolgan_right(double qi, double qi_1, double qi1, double qi2, double xi, dou
     qr = - dif_c * (xi1 - xi) / 2. + qi1;    
 }
 
-bool isPrime(int p) {
-    if (p <= 3) {
-        return false;
-    }
-    if (p % 2 == 0) {
-        return false;
-    }
-    for (int i = 4; i <= std::sqrt(p); i += 2) {
-        if (p % i == 0) {
-            return false;
-        }
-    }
-    return true;
-}
 
 void calc_Fx(InitialState& IS, vec3d& u, vec3d& F) {
     double r, vx, vy, p, e;
@@ -1124,6 +1110,7 @@ void WENO5(InitialState& IS, vec3d& u, vec3d& L, double dx, double dy) {
     }
 }
 
+
 void split_proc(int& p, int& px, int& py){
     py = std::sqrt(p);
     while (py > 1 && p % py != 0) {
@@ -1131,42 +1118,6 @@ void split_proc(int& p, int& px, int& py){
     }
 
     px = p / py;
-}
-
-
-void mpi_get_px_py(int p, int Nx, int Ny, int* px, int* py) {
-    if (p == 1) {
-        (*px) = 1;
-        (*py) = 1;
-    }
-    else {
-        int best_px, best_py;
-        int best_p;
-        int mera = -1;
-        for (int i = 2; i < p + 1; i++) {
-            int first, second;
-            for (int j = 1; j < sqrt(i) + 1; j++) {
-                if (i % j == 0) {
-                    first = j;
-                    second = i / j;
-                }
-            }
-            if (i - abs(second - first) > mera) {
-                mera = i - abs(second - first);
-                best_px = first;
-                best_py = second;
-                best_p = i;
-            }
-        }
-        if ((Nx % best_px) * (Ny % best_py) < (Nx % best_py) * (Ny % best_px)) {
-            (*px) = best_px;
-            (*py) = best_py;
-        }
-        else {
-            (*px) = best_py;
-            (*py) = best_px;
-        }
-    }
 }
 
 
@@ -1184,7 +1135,6 @@ void split_plane(int px, int py, int myrank, int Nx, int Ny, int& Nx_proc, int& 
     Ny_start = myrank / px * base_y + std::min(myrank / px, remainder_y);
 	Ny_end = Ny_start + Ny_proc;
 }
-
 
 void send_vec2(vec2d& data, int rows, int cols, int receiver, int tag, MPI_Comm comm) {
     vec1d flat_data(rows * cols);
@@ -1210,12 +1160,10 @@ vec2d recv_vec2(int rows, int cols, int sender, int tag, MPI_Comm comm, MPI_Stat
     return result;
 }
 
-void exchange_data(InitialState& IS, int myrank, int px, int py, vec2d& m, vec2d& impx, vec2d& impy, vec2d& e, vec2d& buff_x, vec2d& buff_y, MPI_Comm comm, MPI_Status& Status){
+void sending(InitialState& IS, int myrank, int px, int py, vec2d& m, vec2d& impx, vec2d& impy, vec2d& e, vec2d& buff_x, vec2d& buff_y, MPI_Comm comm, MPI_Status& Status){
     // X sending
-    int my_px = myrank % px;
-    int my_py = myrank / px;
-    if(my_px % 2 != 0){
-        if(my_px > 0){
+    if((myrank % px) % 2 != 0){
+        if((myrank % px) > 0){
             for(int i = 0; i < IS.fict; i++){
                 for(int j = 0; j < IS.Ny + 2 * IS.fict; j++){
                     buff_x[i][j] = m[i + IS.fict][j];
@@ -1226,7 +1174,7 @@ void exchange_data(InitialState& IS, int myrank, int px, int py, vec2d& m, vec2d
             }
             send_vec2(buff_x, 4 * IS.fict, (IS.Ny + 2 * IS.fict), myrank - 1, 0, comm);
         }
-        if(my_px > 0){
+        if((myrank % px) > 0){
             buff_x = recv_vec2(4 * IS.fict, IS.Ny + 2 * IS.fict, myrank - 1, 0, comm, Status);
             for(int i = 0; i < IS.fict; i ++){
                 for(int j = 0; j < IS.Ny + 2 * IS.fict; j++){
@@ -1237,7 +1185,7 @@ void exchange_data(InitialState& IS, int myrank, int px, int py, vec2d& m, vec2d
                 }
             }
         }
-        if(my_px < px - 1){
+        if((myrank % px) < px - 1){
             buff_x = recv_vec2(4 * IS.fict, IS.Ny + 2 * IS.fict, myrank + 1, 0, comm, Status);
             for(int i = 0; i < IS.fict; i ++){
                 for(int j = 0; j < IS.Ny + 2 * IS.fict; j++){
@@ -1248,7 +1196,7 @@ void exchange_data(InitialState& IS, int myrank, int px, int py, vec2d& m, vec2d
                 }
             }
         }
-        if(my_px < px - 1){
+        if((myrank % px) < px - 1){
             for(int i = 0; i < IS.fict; i ++){
                 for(int j = 0; j < IS.Ny + 2 * IS.fict; j++){
                     buff_x[i][j] = m[IS.Nx + i][j];
@@ -1260,8 +1208,8 @@ void exchange_data(InitialState& IS, int myrank, int px, int py, vec2d& m, vec2d
             send_vec2(buff_x, 4 * IS.fict, (IS.Ny + 2 * IS.fict), myrank + 1, 0, comm);    
         }
     }
-    if(my_px % 2 == 0){
-        if(my_px < px - 1){
+    if((myrank % px) % 2 == 0){
+        if((myrank % px) < px - 1){
             buff_x = recv_vec2(4 * IS.fict, IS.Ny + 2 * IS.fict, myrank + 1, 0, comm, Status);
             for(int i = 0; i < IS.fict; i ++){
                 for(int j = 0; j < IS.Ny + 2 * IS.fict; j++){
@@ -1272,7 +1220,7 @@ void exchange_data(InitialState& IS, int myrank, int px, int py, vec2d& m, vec2d
                 }
             }
         }
-        if(my_px < px - 1){
+        if((myrank % px) < px - 1){
             for(int i = 0; i < IS.fict; i ++){
                 for(int j = 0; j < IS.Ny + 2 * IS.fict; j++){
                     buff_x[i][j] = m[IS.Nx + i][j];
@@ -1283,7 +1231,7 @@ void exchange_data(InitialState& IS, int myrank, int px, int py, vec2d& m, vec2d
             }
             send_vec2(buff_x, 4 * IS.fict, (IS.Ny + 2 * IS.fict), myrank + 1, 0, comm); 
         }
-        if(my_px > 0){
+        if((myrank % px) > 0){
             for(int i = 0; i < IS.fict; i ++){
                 for(int j = 0; j < IS.Ny + 2 * IS.fict; j++){
                     buff_x[i][j] = m[i + IS.fict][j];
@@ -1294,7 +1242,7 @@ void exchange_data(InitialState& IS, int myrank, int px, int py, vec2d& m, vec2d
             }
             send_vec2(buff_x, 4 * IS.fict, (IS.Ny + 2 * IS.fict), myrank - 1, 0, comm);
         }
-        if(my_px > 0){
+        if((myrank % px) > 0){
             buff_x = recv_vec2(4 * IS.fict, IS.Ny + 2 * IS.fict, myrank - 1, 0, comm, Status);
             for(int i = 0; i < IS.fict; i ++){
                 for(int j = 0; j < IS.Ny + 2 * IS.fict; j++){
@@ -1308,8 +1256,8 @@ void exchange_data(InitialState& IS, int myrank, int px, int py, vec2d& m, vec2d
     }
 
     // Y sending
-    if(my_py % 2 != 0){
-        if(my_py > 0){
+    if((myrank / px) % 2 != 0){
+        if((myrank / px) > 0){
             for(int i = 0; i < IS.fict; i++){
                 for(int j = 0; j < IS.Nx + 2 * IS.fict; j++){
                     buff_y[i][j] = m[j][i + IS.fict];
@@ -1320,7 +1268,7 @@ void exchange_data(InitialState& IS, int myrank, int px, int py, vec2d& m, vec2d
             }
             send_vec2(buff_y, 4 * IS.fict, IS.Nx + 2 * IS.fict, myrank - px, 1, comm);
         }
-        if(my_py > 0){
+        if((myrank / px) > 0){
             buff_y = recv_vec2(4 * IS.fict, IS.Nx + 2 * IS.fict, myrank - px, 1, comm, Status);
             for(int i = 0; i < IS.fict; i++){
                 for(int j = 0; j < IS.Nx + 2 * IS.fict; j++){
@@ -1331,7 +1279,7 @@ void exchange_data(InitialState& IS, int myrank, int px, int py, vec2d& m, vec2d
                 }
             }
         }
-        if(my_py < py - 1){
+        if((myrank / px) < py - 1){
             buff_y = recv_vec2(4 * IS.fict, IS.Nx + 2 * IS.fict, myrank + px, 1, comm, Status);
             for(int i = 0; i < IS.fict; i++){
                 for(int j = 0; j < IS.Nx + 2 * IS.fict; j++){
@@ -1342,7 +1290,7 @@ void exchange_data(InitialState& IS, int myrank, int px, int py, vec2d& m, vec2d
                 }
             }
         }
-        if(my_py < py - 1){
+        if((myrank / px) < py - 1){
             for(int i = 0; i < IS.fict; i++){
                 for(int j = 0; j < IS.Nx + 2 * IS.fict; j++){
                     buff_y[i][j] = m[j][IS.Ny + i];
@@ -1354,8 +1302,8 @@ void exchange_data(InitialState& IS, int myrank, int px, int py, vec2d& m, vec2d
             send_vec2(buff_y, 4 * IS.fict, IS.Nx + 2 * IS.fict, myrank + px, 1, comm);    
         }
     }
-    if(my_py % 2 == 0){
-        if(my_py < py - 1){
+    if((myrank / px) % 2 == 0){
+        if((myrank / px) < py - 1){
             buff_y = recv_vec2(4 * IS.fict, IS.Nx + 2 * IS.fict, myrank + px, 1, comm, Status);
             for(int i = 0; i < IS.fict; i++){
                 for(int j = 0; j < IS.Nx + 2 * IS.fict; j++){
@@ -1366,7 +1314,7 @@ void exchange_data(InitialState& IS, int myrank, int px, int py, vec2d& m, vec2d
                 }
             }
         }
-        if(my_py < py - 1){
+        if((myrank / px) < py - 1){
             for(int i = 0; i < IS.fict; i++){
                 for(int j = 0; j < IS.Nx + 2 * IS.fict; j++){
                     buff_y[i][j] = m[j][IS.Ny + i];
@@ -1377,7 +1325,7 @@ void exchange_data(InitialState& IS, int myrank, int px, int py, vec2d& m, vec2d
             }
             send_vec2(buff_y, 4 * IS.fict, IS.Nx + 2 * IS.fict, myrank + px, 1, comm); 
         }
-        if(my_py > 0){
+        if((myrank / px) > 0){
             for(int i = 0; i < IS.fict; i++){
                 for(int j = 0; j < IS.Nx + 2 * IS.fict; j++){
                     buff_y[i][j] = m[j][i + IS.fict];
@@ -1388,7 +1336,7 @@ void exchange_data(InitialState& IS, int myrank, int px, int py, vec2d& m, vec2d
             }
             send_vec2(buff_y, 4 * IS.fict, IS.Nx + 2 * IS.fict, myrank - px, 1, comm);
         }
-        if(my_py > 0){
+        if((myrank / px) > 0){
             buff_y = recv_vec2(4 * IS.fict, IS.Nx + 2 * IS.fict, myrank - px, 1, comm, Status);
             for(int i = 0; i < IS.fict; i++){
                 for(int j = 0; j < IS.Nx + 2 * IS.fict; j++){
@@ -1406,7 +1354,6 @@ void GKR_WENO_p(InitialState& IS, std::string out_dir, int& myrank, int& size, M
     MPI_Status Status;
     int px, py;
     split_proc(size, px, py);
-    // mpi_get_px_py(size, IS.Nx, IS.Ny, &px, &py);
     size = px * py;
     
     int Nx_proc, Ny_proc, Nx_start, Nx_end, Ny_start, Ny_end;
@@ -1500,7 +1447,7 @@ void GKR_WENO_p(InitialState& IS, std::string out_dir, int& myrank, int& size, M
             fs::remove_all(out_dir);
         }
     }
-    writeCSV_p(params_proc, xc, yc, p, vx, vy, r, m, impx, impy, e, ei, step, time, out_dir, myrank, size, comm);
+    write_out_p(params_proc, xc, yc, p, vx, vy, r, m, impx, impy, e, ei, step, time, out_dir, myrank, size, comm);
     
     while (time < params_proc.t_end) {
         dt = get_dt(params_proc, x, y, m, impx, impy, e);
@@ -1691,7 +1638,7 @@ void GKR_WENO_p(InitialState& IS, std::string out_dir, int& myrank, int& size, M
             Boundary_x(params_proc, m_new, impx_new, impy_new, e_new);
             Boundary_y(params_proc, m_new, impx_new, impy_new, e_new);
             
-            exchange_data(params_proc, myrank, px, py, m_new, impx_new, impy_new, e_new, buff_x, buff_y, comm, Status);
+            sending(params_proc, myrank, px, py, m_new, impx_new, impy_new, e_new, buff_x, buff_y, comm, Status);
 
             for (int i = 0; i < params_proc.Nx + 2 * IS.fict; i++) {
                 for (int j = 0; j < params_proc.Ny + 2 * IS.fict; j++) { 
@@ -1726,7 +1673,7 @@ void GKR_WENO_p(InitialState& IS, std::string out_dir, int& myrank, int& size, M
                 }
                 Boundary_x(params_proc, U[s][0], U[s][1], U[s][2], U[s][3]);
                 Boundary_y(params_proc, U[s][0], U[s][1], U[s][2], U[s][3]);
-                exchange_data(params_proc, myrank, px, py, U[s][0], U[s][1], U[s][2], U[s][3], buff_x, buff_y, comm, Status);
+                sending(params_proc, myrank, px, py, U[s][0], U[s][1], U[s][2], U[s][3], buff_x, buff_y, comm, Status);
             }
 
             for (int i = 0; i < params_proc.Nx + 2 * params_proc.fict; i++) {
@@ -1745,11 +1692,10 @@ void GKR_WENO_p(InitialState& IS, std::string out_dir, int& myrank, int& size, M
 
         if (step % params_proc.write_interval == 0) {
             calc_ei(params_proc, p, r, ei);
-            writeCSV_p(params_proc, xc, yc, p, vx, vy, r, m, impx, impy, e, ei, step, time, out_dir, myrank, size, comm);
+            write_out_p(params_proc, xc, yc, p, vx, vy, r, m, impx, impy, e, ei, step, time, out_dir, myrank, size, comm);
         }
     }
 }
-
 
 void GKR_WENO(InitialState& IS, std::string out_dir){
     vec1d x(IS.Nx + 1 + 2*IS.fict); 
@@ -1826,7 +1772,7 @@ void GKR_WENO(InitialState& IS, std::string out_dir){
     if (fs::exists(out_dir)) {
         fs::remove_all(out_dir);
     }
-    writeCSV(IS, xc, yc, p, vx, vy, r, m, impx, impy, e, ei, step, time, out_dir);
+    write_out(IS, xc, yc, p, vx, vy, r, m, impx, impy, e, ei, step, time, out_dir);
 
     while (time < IS.t_end) {
         dt = get_dt(IS, x, y, m, impx, impy, e);  // time step
@@ -2070,7 +2016,7 @@ void GKR_WENO(InitialState& IS, std::string out_dir){
 
         if (step % IS.write_interval == 0) {
             calc_ei(IS, p, r, ei);
-            writeCSV(IS, xc, yc, p, vx, vy, r, m, impx, impy, e, ei, step, time, out_dir);
+            write_out(IS, xc, yc, p, vx, vy, r, m, impx, impy, e, ei, step, time, out_dir);
         }
     }
 }
@@ -2090,55 +2036,36 @@ int main(int argc, char* argv[]){
 	IS.fict = 1;
 
     MPI_Barrier(MPI_COMM_WORLD);
-<<<<<<< HEAD
-    begin = MPI_Wtime();
-    GKR_WENO_p(IS, "Godunov_2D_p", myrank, size, MPI_COMM_WORLD);
-=======
     t1 = MPI_Wtime();
-    Multiproc_solve(IS, "Godunov_2D_p", myrank, size, MPI_COMM_WORLD);
->>>>>>> 9ad354a2af32dbef8cb8fbed518fc61413a37a30
+    GKR_WENO_p(IS, "Godunov_2D_p", myrank, size, MPI_COMM_WORLD);
     MPI_Barrier(MPI_COMM_WORLD);
     if(myrank == 0) printf("Godunov_2D_p time: %.5f\n\n", MPI_Wtime() - t1);
 
 	IS.s_type = 2;
 	IS.fict = 2;
     MPI_Barrier(MPI_COMM_WORLD);
-<<<<<<< HEAD
-    begin = MPI_Wtime();
-    GKR_WENO_p(IS, "GK_2D_p", myrank, size, MPI_COMM_WORLD);
-=======
     t1 = MPI_Wtime();
-    Multiproc_solve(IS, "GK_2D_p", myrank, size, MPI_COMM_WORLD);
->>>>>>> 9ad354a2af32dbef8cb8fbed518fc61413a37a30
+    GKR_WENO_p(IS, "GK_2D_p", myrank, size, MPI_COMM_WORLD);
     MPI_Barrier(MPI_COMM_WORLD);
     if(myrank == 0) printf("GK_2D_p time: %.5f\n\n", MPI_Wtime() - t1);
     
 	IS.s_type = 3;
 	IS.fict = 2;
     MPI_Barrier(MPI_COMM_WORLD);
-<<<<<<< HEAD
-    begin = MPI_Wtime();
-    GKR_WENO_p(IS, "GKR_2D_p", myrank, size, MPI_COMM_WORLD);
-=======
     t1 = MPI_Wtime();
-    Multiproc_solve(IS, "GKR_2D_p", myrank, size, MPI_COMM_WORLD);
->>>>>>> 9ad354a2af32dbef8cb8fbed518fc61413a37a30
+    GKR_WENO_p(IS, "GKR_2D_p", myrank, size, MPI_COMM_WORLD);
     MPI_Barrier(MPI_COMM_WORLD);
     if(myrank == 0) printf("GKR_2D_p time: %.5f\n\n", MPI_Wtime() - t1);
 
+    /*
 	IS.s_type = 4;
 	IS.fict = 3;
     MPI_Barrier(MPI_COMM_WORLD);
-<<<<<<< HEAD
-    begin = MPI_Wtime();
-    GKR_WENO_p(IS, "WENO_2D_p", myrank, size, MPI_COMM_WORLD);
-=======
     t1 = MPI_Wtime();
-    Multiproc_solve(IS, "WENO_2D_p", myrank, size, MPI_COMM_WORLD);
->>>>>>> 9ad354a2af32dbef8cb8fbed518fc61413a37a30
+    GKR_WENO_p(IS, "WENO_2D_p", myrank, size, MPI_COMM_WORLD);
     MPI_Barrier(MPI_COMM_WORLD);
     if(myrank == 0) printf("WENO_2D_p time: %.5f\n\n", MPI_Wtime() - t1);
-    
+    */
     /*
     if(myrank == 0){
         t1 = MPI_Wtime();
