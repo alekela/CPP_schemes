@@ -9,16 +9,16 @@ for filename in names:
 	for file in os.listdir(filename):
 		max_num = max(max_num, int(file.split("=")[1].split('.')[0]))
 
-	sep = ';'
+	sep = ','
 	with open(os.path.join(filename, f"Iter={max_num}.csv")) as f:
-		#time = float(f.readline().split(":")[1])
-		time = float(f.readline())
+		time = float(f.readline().split(":")[1])
+		# time = float(f.readline())
 		title = f.readline().split(sep)
 		data = f.readlines()
 	data = list(map(lambda x: list(map(float, x.split(sep))), data))
 	x = np.array(list(map(lambda x: x[0], data)))
 	y = np.array(list(map(lambda x: x[1], data)))
-	P = np.array(list(map(lambda x: x[6], data)))
+	P = np.array(list(map(lambda x: x[5], data)))
 	Lx = 1
 	Ly = len(y)
 	for i in range(1, len(x)):
