@@ -1364,7 +1364,7 @@ void exchange_data(InitialState& IS, int myrank, int px, int py, vec2d& m, vec2d
     }
 }
 
-void Multiproc_solve(InitialState& IS, std::string out_dir, int& myrank, int& size, MPI_Comm comm){
+void GKR_WENO_p(InitialState& IS, std::string out_dir, int& myrank, int& size, MPI_Comm comm){
     MPI_Status Status;
     int px, py;
     split_proc(size, px, py);
@@ -1711,7 +1711,8 @@ void Multiproc_solve(InitialState& IS, std::string out_dir, int& myrank, int& si
     }
 }
 
-void Solve(InitialState& IS, std::string out_dir){
+
+void GKR_WENO(InitialState& IS, std::string out_dir){
     vec1d x(IS.Nx + 1 + 2*IS.fict); 
     vec1d xc(IS.Nx + 1 + 2*IS.fict);
     vec1d y(IS.Ny + 1 + 2*IS.fict); 
@@ -2051,7 +2052,7 @@ int main(int argc, char* argv[]){
 
     MPI_Barrier(MPI_COMM_WORLD);
     begin = MPI_Wtime();
-    Multiproc_solve(IS, "Godunov_2D_p", myrank, size, MPI_COMM_WORLD);
+    GKR_WENO_p(IS, "Godunov_2D_p", myrank, size, MPI_COMM_WORLD);
     MPI_Barrier(MPI_COMM_WORLD);
     end = MPI_Wtime();
     if(myrank == 0) printf("Godunov_2D_p time: %.5f\n\n", end - begin);
@@ -2060,7 +2061,7 @@ int main(int argc, char* argv[]){
 	IS.fict = 2;
     MPI_Barrier(MPI_COMM_WORLD);
     begin = MPI_Wtime();
-    Multiproc_solve(IS, "GK_2D_p", myrank, size, MPI_COMM_WORLD);
+    GKR_WENO_p(IS, "GK_2D_p", myrank, size, MPI_COMM_WORLD);
     MPI_Barrier(MPI_COMM_WORLD);
     end = MPI_Wtime();
     if(myrank == 0) printf("GK_2D_p time: %.5f\n\n", end - begin);
@@ -2069,7 +2070,7 @@ int main(int argc, char* argv[]){
 	IS.fict = 2;
     MPI_Barrier(MPI_COMM_WORLD);
     begin = MPI_Wtime();
-    Multiproc_solve(IS, "GKR_2D_p", myrank, size, MPI_COMM_WORLD);
+    GKR_WENO_p(IS, "GKR_2D_p", myrank, size, MPI_COMM_WORLD);
     MPI_Barrier(MPI_COMM_WORLD);
     end = MPI_Wtime();
     if(myrank == 0) printf("GKR_2D_p time: %.5f\n\n", end - begin);
@@ -2078,7 +2079,7 @@ int main(int argc, char* argv[]){
 	IS.fict = 3;
     MPI_Barrier(MPI_COMM_WORLD);
     begin = MPI_Wtime();
-    Multiproc_solve(IS, "WENO_2D_p", myrank, size, MPI_COMM_WORLD);
+    GKR_WENO_p(IS, "WENO_2D_p", myrank, size, MPI_COMM_WORLD);
     MPI_Barrier(MPI_COMM_WORLD);
     end = MPI_Wtime();
     if(myrank == 0) printf("WENO_2D_p time: %.5f\n\n", end - begin);
@@ -2087,7 +2088,7 @@ int main(int argc, char* argv[]){
     if(myrank == 0){
         begin = MPI_Wtime();
         read_params(IS, "W.txt");
-        Solve(IS, "resultW");
+        GKR_WENO(IS, "resultW");
         end = MPI_Wtime();
         printf("time sequently: %.5f\n\n", end - begin);
     }
