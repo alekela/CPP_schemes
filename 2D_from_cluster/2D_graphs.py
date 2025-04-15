@@ -2,8 +2,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 import os
 
-
-names = ["WENO_2D_p", "Godunov_2D_p", "GK_2D_p", "GKR_2D_p"]
+end = "Makh"
+names = [f"WENO_2D_{end}", f"Godunov_2D_{end}", f"GK_2D_{end}", f"GKR_2D_{end}"]
 for filename in names:
 	max_num = -1
 	for file in os.listdir(filename):

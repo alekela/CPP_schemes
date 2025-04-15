@@ -16,7 +16,7 @@ b_left 0;
 b_right 0;
 b_down 0;
 b_up 0;
-initial 2;
+initial 1;
 write_interval 10;
 max_iter 500;
 

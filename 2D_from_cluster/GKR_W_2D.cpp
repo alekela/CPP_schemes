@@ -64,22 +64,22 @@ InitialState change_params(InitialState IS, int Nx, int Ny, double x_start, doub
 
 //constant parameters
 void init_params(InitialState& IS) {
-    IS.gamma = 1.4;
     IS.x_start = 0.;
     IS.x_end = 1.;
     IS.y_start = 0.;
     IS.y_end = 1.;
 
-    IS.Nx = 50;
-    IS.Ny = 50;
-    IS.t_end = 2;
+    IS.Nx = 200;
+    IS.Ny = 200;
+    IS.t_end = 0.2;
     IS.CFL = 0.5;  
+    IS.gamma = 1.4;
 
-    IS.b_left = 1;
-    IS.b_right = 1;
+    IS.b_left = 0;
+    IS.b_right = 0;
     IS.b_up = 0;
     IS.b_down = 0;
-    IS.initial = 2;
+    IS.initial = 5;
     IS.write_interval = 10;
     IS.max_iter = 1000;
     
@@ -90,7 +90,6 @@ void init_params(InitialState& IS) {
     else if (IS.s_type == 2 || IS.s_type == 3) IS.fict = 2;
     else if (IS.s_type == 4) IS.fict = 3;
     else {
-        std::cerr << "Invalid s_type in parameters. Change to 1 (Godunov)" << std::endl;
         IS.fict = 1;
     }
 }
@@ -319,7 +318,7 @@ void exchange_dt(InitialState& IS, double& dt, vec1d& x, vec1d& y, vec2d& m, vec
 }
 
 
-void Soda_x(InitialState& IS, vec1d& xc, vec1d& yc, vec2d& p, vec2d& vx, vec2d& vy, vec2d& r, vec2d& m, vec2d& impx, vec2d& impy, vec2d& e) {
+void Soda(InitialState& IS, vec1d& xc, vec1d& yc, vec2d& p, vec2d& vx, vec2d& vy, vec2d& r, vec2d& m, vec2d& impx, vec2d& impy, vec2d& e) {
     double p1 = 1.0;
     double r1 = 1.0;
     double p2 = 0.1;
@@ -344,7 +343,7 @@ void Soda_x(InitialState& IS, vec1d& xc, vec1d& yc, vec2d& p, vec2d& vx, vec2d& 
     }
 }
 
-void Soda_y(InitialState& IS, vec1d& xc, vec1d& yc, vec2d& p, vec2d& vx, vec2d& vy, vec2d& r, vec2d& m, vec2d& impx, vec2d& impy, vec2d& e) {
+void MakhConus(InitialState& IS, vec1d& xc, vec1d& yc, vec2d& p, vec2d& vx, vec2d& vy, vec2d& r, vec2d& m, vec2d& impx, vec2d& impy, vec2d& e) {
     double p1 = 1.0;
     double r1 = 1.0;
     double p2 = 0.1;
@@ -463,23 +462,12 @@ void Explosion(InitialState& IS, vec1d& xc, vec1d& yc, vec2d& p, vec2d& vx, vec2
 }
 
 void Init(InitialState& IS, vec1d& xc, vec1d& yc, vec2d& p, vec2d& vx, vec2d& vy, vec2d& r, vec2d& m, vec2d& impx, vec2d& impy, vec2d& e){
-    switch (IS.initial){
-    case 1:
-        Bubble(IS, xc, yc, p, vx, vy, r, m, impx, impy, e);
-        break;
-    case 2:
-        Soda_x(IS, xc, yc, p, vx, vy, r, m, impx, impy, e);
-        break;
-    case 3:
-        Explosion(IS, xc, yc, p, vx, vy, r, m, impx, impy, e);
-        break;
-    case 4:
-        Gelmgolc(IS, xc, yc, p, vx, vy, r, m, impx, impy, e);
-        break;
-    default:
-        Bubble(IS, xc, yc, p, vx, vy, r, m, impx, impy, e);
-        break;
-    }
+	if (IS.initial == 1) Bubble(IS, xc, yc, p, vx, vy, r, m, impx, impy, e);
+	else if (IS.initial == 2) Soda(IS, xc, yc, p, vx, vy, r, m, impx, impy, e);
+	else if (IS.initial == 3) Explosion(IS, xc, yc, p, vx, vy, r, m, impx, impy, e);
+	else if (IS.initial == 4) Gelmgolc(IS, xc, yc, p, vx, vy, r, m, impx, impy, e);
+	else if (IS.initial == 5) MakhConus(IS, xc, yc, p, vx, vy, r, m, impx, impy, e);
+	else Soda(IS, xc, yc, p, vx, vy, r, m, impx, impy, e);
 }
 
 //save results in the directory filename
@@ -2031,13 +2019,13 @@ int main(int argc, char* argv[]){
     
     InitialState IS;
 
-    read_params(IS, "Init.txt");
+    init_params(IS);
 	IS.s_type = 1;
 	IS.fict = 1;
 
     MPI_Barrier(MPI_COMM_WORLD);
     t1 = MPI_Wtime();
-    GKR_WENO_p(IS, "Godunov_2D_p", myrank, size, MPI_COMM_WORLD);
+    GKR_WENO_p(IS, "Godunov_2D_Makh", myrank, size, MPI_COMM_WORLD);
     MPI_Barrier(MPI_COMM_WORLD);
     if(myrank == 0) printf("Godunov_2D_p time: %.5f\n\n", MPI_Wtime() - t1);
 
@@ -2045,7 +2033,7 @@ int main(int argc, char* argv[]){
 	IS.fict = 2;
     MPI_Barrier(MPI_COMM_WORLD);
     t1 = MPI_Wtime();
-    GKR_WENO_p(IS, "GK_2D_p", myrank, size, MPI_COMM_WORLD);
+    GKR_WENO_p(IS, "GK_2D_Makh", myrank, size, MPI_COMM_WORLD);
     MPI_Barrier(MPI_COMM_WORLD);
     if(myrank == 0) printf("GK_2D_p time: %.5f\n\n", MPI_Wtime() - t1);
     
@@ -2053,19 +2041,19 @@ int main(int argc, char* argv[]){
 	IS.fict = 2;
     MPI_Barrier(MPI_COMM_WORLD);
     t1 = MPI_Wtime();
-    GKR_WENO_p(IS, "GKR_2D_p", myrank, size, MPI_COMM_WORLD);
+    GKR_WENO_p(IS, "GKR_2D_Makh", myrank, size, MPI_COMM_WORLD);
     MPI_Barrier(MPI_COMM_WORLD);
     if(myrank == 0) printf("GKR_2D_p time: %.5f\n\n", MPI_Wtime() - t1);
 
-    /*
+    
 	IS.s_type = 4;
 	IS.fict = 3;
     MPI_Barrier(MPI_COMM_WORLD);
     t1 = MPI_Wtime();
-    GKR_WENO_p(IS, "WENO_2D_p", myrank, size, MPI_COMM_WORLD);
+    GKR_WENO_p(IS, "WENO_2D_Makh", myrank, size, MPI_COMM_WORLD);
     MPI_Barrier(MPI_COMM_WORLD);
     if(myrank == 0) printf("WENO_2D_p time: %.5f\n\n", MPI_Wtime() - t1);
-    */
+    
     /*
     if(myrank == 0){
         t1 = MPI_Wtime();
