@@ -2,6 +2,6 @@
 
 jid1=$(sbatch runTask|sed 's/Submitted batch job //')
 echo "Running on hosts: $jid1 !"
-jid2=$(sbatch --dependency=afterany:$jid1 srun|sed 's/Submitted batch job //')
+jid2=$(sbatch --dependency=afterany:$jid1 srun_anim|sed 's/Submitted batch job //')
 
 squeue -u $USER -o "%.8A %.4C %.10m %.20E"

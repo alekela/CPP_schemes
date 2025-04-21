@@ -36,7 +36,6 @@ struct InitialState {
     int b_up; 
     int b_down;
     int initial;
-    int step_y, step_x;
     int write_interval;
     int max_iter;
 
@@ -70,8 +69,8 @@ void init_params(InitialState& IS) {
     IS.y_start = 0.;
     IS.y_end = 1.;
 
-    IS.Nx = 1000;
-    IS.Ny = 500;
+    IS.Nx = 200;
+    IS.Ny = 200;
     IS.t_end = 0.2;
     IS.CFL = 0.5;  
     IS.gamma = 1.4;
@@ -80,8 +79,8 @@ void init_params(InitialState& IS) {
     IS.b_right = 0;
     IS.b_up = 0;
     IS.b_down = 0;
-    IS.initial = 5; // 1 - Bubble, 2 - Soda, 5 - Makh
-    IS.write_interval = 40;
+    IS.initial = 2; // 1 - Bubble, 2 - Soda, 5 - Makh
+    IS.write_interval = 10;
     IS.max_iter = 1000;
     
     IS.s_type = 1;
@@ -217,205 +216,69 @@ void y_grid(InitialState& IS, vec1d& yc, vec1d& y) {
     }
 }
 
-
 //boundary X
 void Boundary_x(InitialState& IS, vec2d& m, vec2d& impx, vec2d& impy, vec2d& e) {
-    if (IS.initial == 5 || IS.initial == 3) {
-        if (IS.b_left == 3) {
-            double bimpx, bimpy, bmass, be;
-            double bp = 80000, bux = 792., buy = 0, br = 1.225;
-            noncons_to_cons(IS, bp, bux, buy, br, bmass, bimpx, bimpy, be);
-            for (int j = IS.step_y + IS.fict; j < IS.Ny + 2 * IS.fict; ++j) {
-                m[IS.fict][j] = bmass;
-                impx[IS.fict][j] = bimpx;
-                impy[IS.fict][j] = bimpy;
-                e[IS.fict][j] = be;
+    for(int i = 1; i <= IS.fict; ++i){
+        for(int j = 0; j < IS.Ny + 2 * IS.fict; ++j){
+            if (IS.b_left == 0) {   //wall
+                m[IS.fict - i][j] = m[IS.fict + i - 1][j];
+                impx[IS.fict - i][j] = -impx[IS.fict + i - 1][j];
+                impy[IS.fict - i][j] = impy[IS.fict + i - 1][j];
+                e[IS.fict - i][j] = e[IS.fict + i - 1][j];
             }
-        }
-        for (int i = 1; i <= IS.fict; ++i) {
-            for (int j = IS.step_y; j < IS.Ny + 2 * IS.fict; ++j) {
-                if (IS.b_left == 0) {   //wall
-                    m[IS.fict - i][j] = m[IS.fict + i - 1][j];
-                    impx[IS.fict - i][j] = -impx[IS.fict + i - 1][j];
-                    impy[IS.fict - i][j] = impy[IS.fict + i - 1][j];
-                    e[IS.fict - i][j] = e[IS.fict + i - 1][j];
-                }
-                else if (IS.b_left == 1) {   //free bound
-                    m[IS.fict - i][j] = m[IS.fict + i - 1][j];
-                    impx[IS.fict - i][j] = impx[IS.fict + i - 1][j];
-                    impy[IS.fict - i][j] = impy[IS.fict + i - 1][j];
-                    e[IS.fict - i][j] = e[IS.fict + i - 1][j];
-                }
-                if (IS.b_right == 0) {   //wall
-                    m[IS.Nx + IS.fict + i - 1][j] = m[IS.Nx + IS.fict - i][j];
-                    impx[IS.Nx + IS.fict + i - 1][j] = -impx[IS.Nx + IS.fict - i][j];
-                    impy[IS.Nx + IS.fict + i - 1][j] = impy[IS.Nx + IS.fict - i][j];
-                    e[IS.Nx + IS.fict + i - 1][j] = e[IS.Nx + IS.fict - i][j];
-                }
-                else if (IS.b_right == 1) {   //free bound
-                    m[IS.Nx + IS.fict + i - 1][j] = m[IS.Nx + IS.fict - i][j];
-                    impx[IS.Nx + IS.fict + i - 1][j] = impx[IS.Nx + IS.fict - i][j];
-                    impy[IS.Nx + IS.fict + i - 1][j] = impy[IS.Nx + IS.fict - i][j];
-                    e[IS.Nx + IS.fict + i - 1][j] = e[IS.Nx + IS.fict - i][j];
-                }
+            else if (IS.b_left == 1) {   //free bound
+                m[IS.fict - i][j] = m[IS.fict + i - 1][j];
+                impx[IS.fict - i][j] = impx[IS.fict + i - 1][j];
+                impy[IS.fict - i][j] = impy[IS.fict + i - 1][j];
+                e[IS.fict - i][j] = e[IS.fict + i - 1][j];
             }
-        }
-
-        for (int i = 1; i <= IS.fict; ++i) {
-            for (int j = 0; j < IS.step_y; ++j) {
-                if (IS.b_left == 0) {   //wall
-                    m[IS.fict + IS.step_x - i][j] = m[IS.fict + IS.step_x + i - 1][j];
-                    impx[IS.fict + IS.step_x - i][j] = -impx[IS.fict + IS.step_x + i - 1][j];
-                    impy[IS.fict + IS.step_x - i][j] = impy[IS.fict + IS.step_x + i - 1][j];
-                    e[IS.fict + IS.step_x - i][j] = e[IS.fict + IS.step_x + i - 1][j];
-                }
-                else if (IS.b_left == 1) {   //free bound
-                    m[IS.fict + IS.step_x - i][j] = m[IS.fict + IS.step_x + i - 1][j];
-                    impx[IS.fict + IS.step_x - i][j] = impx[IS.fict + IS.step_x + i - 1][j];
-                    impy[IS.fict + IS.step_x - i][j] = impy[IS.fict + IS.step_x + i - 1][j];
-                    e[IS.fict + IS.step_x - i][j] = e[IS.fict + IS.step_x + i - 1][j];
-                }
-                if (IS.b_right == 0) {   //wall
-                    m[IS.Nx + IS.fict + i - 1][j] = m[IS.Nx + IS.fict - i][j];
-                    impx[IS.Nx + IS.fict + i - 1][j] = -impx[IS.Nx + IS.fict - i][j];
-                    impy[IS.Nx + IS.fict + i - 1][j] = impy[IS.Nx + IS.fict - i][j];
-                    e[IS.Nx + IS.fict + i - 1][j] = e[IS.Nx + IS.fict - i][j];
-                }
-                else if (IS.b_right == 1) {   //free bound
-                    m[IS.Nx + IS.fict + i - 1][j] = m[IS.Nx + IS.fict - i][j];
-                    impx[IS.Nx + IS.fict + i - 1][j] = impx[IS.Nx + IS.fict - i][j];
-                    impy[IS.Nx + IS.fict + i - 1][j] = impy[IS.Nx + IS.fict - i][j];
-                    e[IS.Nx + IS.fict + i - 1][j] = e[IS.Nx + IS.fict - i][j];
-                }
+            if (IS.b_right == 0) {   //wall
+                m[IS.Nx + IS.fict + i - 1][j] = m[IS.Nx + IS.fict - i][j];
+                impx[IS.Nx + IS.fict + i - 1][j] = -impx[IS.Nx + IS.fict - i][j];
+                impy[IS.Nx + IS.fict + i - 1][j] = impy[IS.Nx + IS.fict - i][j];
+                e[IS.Nx + IS.fict + i - 1][j] = e[IS.Nx + IS.fict - i][j];
             }
-        }
-    }
-    else {
-        for (int i = 1; i <= IS.fict; ++i) {
-            for (int j = 0; j < IS.Ny + 2 * IS.fict; ++j) {
-                if (IS.b_left == 0) {   //wall
-                    m[IS.fict - i][j] = m[IS.fict + i - 1][j];
-                    impx[IS.fict - i][j] = -impx[IS.fict + i - 1][j];
-                    impy[IS.fict - i][j] = impy[IS.fict + i - 1][j];
-                    e[IS.fict - i][j] = e[IS.fict + i - 1][j];
-                }
-                else if (IS.b_left == 1) {   //free bound
-                    m[IS.fict - i][j] = m[IS.fict + i - 1][j];
-                    impx[IS.fict - i][j] = impx[IS.fict + i - 1][j];
-                    impy[IS.fict - i][j] = impy[IS.fict + i - 1][j];
-                    e[IS.fict - i][j] = e[IS.fict + i - 1][j];
-                }
-                if (IS.b_right == 0) {   //wall
-                    m[IS.Nx + IS.fict + i - 1][j] = m[IS.Nx + IS.fict - i][j];
-                    impx[IS.Nx + IS.fict + i - 1][j] = -impx[IS.Nx + IS.fict - i][j];
-                    impy[IS.Nx + IS.fict + i - 1][j] = impy[IS.Nx + IS.fict - i][j];
-                    e[IS.Nx + IS.fict + i - 1][j] = e[IS.Nx + IS.fict - i][j];
-                }
-                else if (IS.b_right == 1) {   //free bound
-                    m[IS.Nx + IS.fict + i - 1][j] = m[IS.Nx + IS.fict - i][j];
-                    impx[IS.Nx + IS.fict + i - 1][j] = impx[IS.Nx + IS.fict - i][j];
-                    impy[IS.Nx + IS.fict + i - 1][j] = impy[IS.Nx + IS.fict - i][j];
-                    e[IS.Nx + IS.fict + i - 1][j] = e[IS.Nx + IS.fict - i][j];
-                }
+            else if (IS.b_right == 1) {   //free bound
+                m[IS.Nx + IS.fict + i - 1][j] = m[IS.Nx + IS.fict - i][j];
+                impx[IS.Nx + IS.fict + i - 1][j] = impx[IS.Nx + IS.fict - i][j];
+                impy[IS.Nx + IS.fict + i - 1][j] = impy[IS.Nx + IS.fict - i][j];
+                e[IS.Nx + IS.fict + i - 1][j] = e[IS.Nx + IS.fict - i][j];
             }
         }
     }
 }
-
 
 //boundary Y
 void Boundary_y(InitialState& IS, vec2d& m, vec2d& impx, vec2d& impy, vec2d& e) {
-    if (IS.initial == 5 || IS.initial == 3) {
-        for (int j = 1; j <= IS.fict; ++j) {
-            for (int i = IS.step_x; i < IS.Nx + 2 * IS.fict; ++i) {
-                if (IS.b_down == 0) {   //wall
-                    m[i][IS.fict - j] = m[i][IS.fict + j - 1];
-                    impx[i][IS.fict - j] = impx[i][IS.fict + j - 1];
-                    impy[i][IS.fict - j] = -impy[i][IS.fict + j - 1];
-                    e[i][IS.fict - j] = e[i][IS.fict + j - 1];
-                }
-                else if (IS.b_down == 1) {   //free bound
-                    m[i][IS.fict - j] = m[i][IS.fict + j - 1];
-                    impx[i][IS.fict - j] = impx[i][IS.fict + j - 1];
-                    impy[i][IS.fict - j] = impy[i][IS.fict + j - 1];
-                    e[i][IS.fict - j] = e[i][IS.fict + j - 1];
-                }
-                if (IS.b_up == 0) {   //wall
-                    m[i][IS.Ny + IS.fict + j - 1] = m[i][IS.Ny + IS.fict - j];
-                    impx[i][IS.Ny + IS.fict + j - 1] = impx[i][IS.Ny + IS.fict - j];
-                    impy[i][IS.Ny + IS.fict + j - 1] = -impy[i][IS.Ny + IS.fict - j];
-                    e[i][IS.Ny + IS.fict + j - 1] = e[i][IS.Ny + IS.fict - j];
-                }
-                else if (IS.b_up == 1) {   //free bound
-                    m[i][IS.Ny + IS.fict + j - 1] = m[i][IS.Ny + IS.fict - j];
-                    impx[i][IS.Ny + IS.fict + j - 1] = impx[i][IS.Ny + IS.fict - j];
-                    impy[i][IS.Ny + IS.fict + j - 1] = impy[i][IS.Ny + IS.fict - j];
-                    e[i][IS.Ny + IS.fict + j - 1] = e[i][IS.Ny + IS.fict - j];
-                }
+    for(int j = 1; j <= IS.fict; ++j){
+        for(int i = 0; i < IS.Nx + 2 * IS.fict; ++i){
+            if (IS.b_down == 0) {   //wall
+                m[i][IS.fict - j] = m[i][IS.fict + j - 1];
+                impx[i][IS.fict - j] = impx[i][IS.fict + j - 1];
+                impy[i][IS.fict - j] = -impy[i][IS.fict + j - 1];
+                e[i][IS.fict - j] = e[i][IS.fict + j - 1];
             }
-        }
-
-        for (int j = 1; j <= IS.fict; ++j) {
-            for (int i = 0; i < IS.step_x; ++i) {
-                if (IS.b_down == 0) {   //wall
-                    m[i][IS.fict + IS.step_y - j] = m[i][IS.fict + IS.step_y + j - 1];
-                    impx[i][IS.fict + IS.step_y - j] = impx[i][IS.fict + IS.step_y + j - 1];
-                    impy[i][IS.fict + IS.step_y - j] = -impy[i][IS.fict + IS.step_y + j - 1];
-                    e[i][IS.fict + IS.step_y - j] = e[i][IS.fict + IS.step_y + j - 1];
-                }
-                else if (IS.b_down == 1) {   //free bound
-                    m[i][IS.fict + IS.step_y - j] = m[i][IS.fict + IS.step_y + j - 1];
-                    impx[i][IS.fict + IS.step_y - j] = impx[i][IS.fict + IS.step_y + j - 1];
-                    impy[i][IS.fict + IS.step_y - j] = impy[i][IS.fict + IS.step_y + j - 1];
-                    e[i][IS.fict + IS.step_y - j] = e[i][IS.fict + IS.step_y + j - 1];
-                }
-                if (IS.b_up == 0) {   //wall
-                    m[i][IS.Ny + IS.fict + j - 1] = m[i][IS.Ny + IS.fict - j];
-                    impx[i][IS.Ny + IS.fict + j - 1] = impx[i][IS.Ny + IS.fict - j];
-                    impy[i][IS.Ny + IS.fict + j - 1] = -impy[i][IS.Ny + IS.fict - j];
-                    e[i][IS.Ny + IS.fict + j - 1] = e[i][IS.Ny + IS.fict - j];
-                }
-                else if (IS.b_up == 1) {   //free bound
-                    m[i][IS.Ny + IS.fict + j - 1] = m[i][IS.Ny + IS.fict - j];
-                    impx[i][IS.Ny + IS.fict + j - 1] = impx[i][IS.Ny + IS.fict - j];
-                    impy[i][IS.Ny + IS.fict + j - 1] = impy[i][IS.Ny + IS.fict - j];
-                    e[i][IS.Ny + IS.fict + j - 1] = e[i][IS.Ny + IS.fict - j];
-                }
+            else if (IS.b_down == 1) {   //free bound
+                m[i][IS.fict - j] = m[i][IS.fict + j - 1];
+                impx[i][IS.fict - j] = impx[i][IS.fict + j - 1];
+                impy[i][IS.fict - j] = impy[i][IS.fict + j - 1];
+                e[i][IS.fict - j] = e[i][IS.fict + j - 1];
             }
-        }
-    }
-    else {
-        for (int j = 1; j <= IS.fict; ++j) {
-            for (int i = 0; i < IS.Nx + 2 * IS.fict; ++i) {
-                if (IS.b_down == 0) {   //wall
-                    m[i][IS.fict - j] = m[i][IS.fict + j - 1];
-                    impx[i][IS.fict - j] = impx[i][IS.fict + j - 1];
-                    impy[i][IS.fict - j] = -impy[i][IS.fict + j - 1];
-                    e[i][IS.fict - j] = e[i][IS.fict + j - 1];
-                }
-                else if (IS.b_down == 1) {   //free bound
-                    m[i][IS.fict - j] = m[i][IS.fict + j - 1];
-                    impx[i][IS.fict - j] = impx[i][IS.fict + j - 1];
-                    impy[i][IS.fict - j] = impy[i][IS.fict + j - 1];
-                    e[i][IS.fict - j] = e[i][IS.fict + j - 1];
-                }
-                if (IS.b_up == 0) {   //wall
-                    m[i][IS.Ny + IS.fict + j - 1] = m[i][IS.Ny + IS.fict - j];
-                    impx[i][IS.Ny + IS.fict + j - 1] = impx[i][IS.Ny + IS.fict - j];
-                    impy[i][IS.Ny + IS.fict + j - 1] = -impy[i][IS.Ny + IS.fict - j];
-                    e[i][IS.Ny + IS.fict + j - 1] = e[i][IS.Ny + IS.fict - j];
-                }
-                else if (IS.b_up == 1) {   //free bound
-                    m[i][IS.Ny + IS.fict + j - 1] = m[i][IS.Ny + IS.fict - j];
-                    impx[i][IS.Ny + IS.fict + j - 1] = impx[i][IS.Ny + IS.fict - j];
-                    impy[i][IS.Ny + IS.fict + j - 1] = impy[i][IS.Ny + IS.fict - j];
-                    e[i][IS.Ny + IS.fict + j - 1] = e[i][IS.Ny + IS.fict - j];
-                }
+            if (IS.b_up == 0) {   //wall
+                m[i][IS.Ny + IS.fict + j - 1] = m[i][IS.Ny + IS.fict - j];
+                impx[i][IS.Ny + IS.fict + j - 1] = impx[i][IS.Ny + IS.fict - j];
+                impy[i][IS.Ny + IS.fict + j - 1] = -impy[i][IS.Ny + IS.fict - j];
+                e[i][IS.Ny + IS.fict + j - 1] = e[i][IS.Ny + IS.fict - j];
+            }
+            else if (IS.b_up == 1) {   //free bound
+                m[i][IS.Ny + IS.fict + j - 1] = m[i][IS.Ny + IS.fict - j];
+                impx[i][IS.Ny + IS.fict + j - 1] = impx[i][IS.Ny + IS.fict - j];
+                impy[i][IS.Ny + IS.fict + j - 1] = impy[i][IS.Ny + IS.fict - j];
+                e[i][IS.Ny + IS.fict + j - 1] = e[i][IS.Ny + IS.fict - j];
             }
         }
     }
 }
-
 
 //caluclate time step
 double get_dt(InitialState& IS, vec1d& x, vec1d& y, vec2d& m, vec2d& impx, vec2d& impy, vec2d& e) {
@@ -463,7 +326,7 @@ void Soda(InitialState& IS, vec1d& xc, vec1d& yc, vec2d& p, vec2d& vx, vec2d& vy
 
     for(int i = 0; i < IS.Nx + 2 * IS.fict; ++i){
         for(int j = 0; j < IS.Ny + 2 * IS.fict; ++j){
-            if(xc[i] <= 0.5){
+            if(yc[j] <= 0.5){
                 r[i][j] = r1;
                 p[i][j] = p1;
                 vx[i][j] = 0.;
@@ -480,30 +343,33 @@ void Soda(InitialState& IS, vec1d& xc, vec1d& yc, vec2d& p, vec2d& vx, vec2d& vy
     }
 }
 
-void MakhConus(InitialState& IS, int rank, vec1d& xc, vec1d& yc, vec2d& p, vec2d& vx, vec2d& vy, vec2d& r, vec2d& m, vec2d& impx, vec2d& impy, vec2d& e) {
+void MakhConus(InitialState& IS, vec1d& xc, vec1d& yc, vec2d& p, vec2d& vx, vec2d& vy, vec2d& r, vec2d& m, vec2d& impx, vec2d& impy, vec2d& e) {
     IS.b_right = 1;
-    IS.b_left = 3;
-    IS.b_down = 0;
-    IS.b_up = 0;
-	
-    IS.step_y = 50;
-    IS.step_x = 100;
-
+    
     double p1 = 80000;
     double r1 = 1.225;
-    double u1 = 134.83;
+    double u1 = 0;
+    double p2 = 0.1;
+    double r2 = 0.125;
 
-    for (int i = 0; i < IS.Nx + 2 * IS.fict; ++i) {
-        for (int j = 0; j < IS.Ny + 2 * IS.fict; ++j) {
-            r[i][j] = r1;
-            p[i][j] = p1;
-            vx[i][j] = 0.;
-            vy[i][j] = 0.;
+    for(int i = 0; i < IS.Nx + 2 * IS.fict; ++i){
+        for(int j = 0; j < IS.Ny + 2 * IS.fict; ++j){
+            if(yc[j] <= 0.5){
+                r[i][j] = r1;
+                p[i][j] = p1;
+                vx[i][j] = 0.;
+                vy[i][j] = 0.;
+            }
+            else{
+                r[i][j] = r2;
+                p[i][j] = p2;
+                vx[i][j] = 0.;
+                vy[i][j] = 0.;
+            }
             noncons_to_cons(IS, p[i][j], vx[i][j], vy[i][j], r[i][j], m[i][j], impx[i][j], impy[i][j], e[i][j]);
         }
     }
 }
-
 
 void Gelmgolc(InitialState& IS, vec1d& xc, vec1d& yc, vec2d& p, vec2d& vx, vec2d& vy, vec2d& r, vec2d& m, vec2d& impx, vec2d& impy, vec2d& e) {
     double p1 = 1.0;
@@ -573,8 +439,6 @@ void Explosion(InitialState& IS, vec1d& xc, vec1d& yc, vec2d& p, vec2d& vx, vec2
     vx1 = 0.;
     vy1 = 0.;
     r1 = 1.;
-    IS.step_y = 100;
-    IS.step_x = 100;
 
     p2 = 0.1;
     vx2 = 0.;
@@ -600,12 +464,12 @@ void Explosion(InitialState& IS, vec1d& xc, vec1d& yc, vec2d& p, vec2d& vx, vec2
     }
 }
 
-void Init(InitialState& IS, int rank, vec1d& xc, vec1d& yc, vec2d& p, vec2d& vx, vec2d& vy, vec2d& r, vec2d& m, vec2d& impx, vec2d& impy, vec2d& e){
+void Init(InitialState& IS, vec1d& xc, vec1d& yc, vec2d& p, vec2d& vx, vec2d& vy, vec2d& r, vec2d& m, vec2d& impx, vec2d& impy, vec2d& e){
 	if (IS.initial == 1) Bubble(IS, xc, yc, p, vx, vy, r, m, impx, impy, e);
 	else if (IS.initial == 2) Soda(IS, xc, yc, p, vx, vy, r, m, impx, impy, e);
 	else if (IS.initial == 3) Explosion(IS, xc, yc, p, vx, vy, r, m, impx, impy, e);
 	else if (IS.initial == 4) Gelmgolc(IS, xc, yc, p, vx, vy, r, m, impx, impy, e);
-	else if (IS.initial == 5) MakhConus(IS, rank, xc, yc, p, vx, vy, r, m, impx, impy, e);
+	else if (IS.initial == 5) MakhConus(IS, xc, yc, p, vx, vy, r, m, impx, impy, e);
 	else Soda(IS, xc, yc, p, vx, vy, r, m, impx, impy, e);
 }
 
@@ -645,13 +509,8 @@ void write_out_p(InitialState& IS, vec1d& xc, vec1d& yc, vec2d& p, vec2d& vx, ve
         buffer << ("Time: " + std::to_string(time) + "\n") << "X,Y,UX,UY,Rho,P,E\n";
     }
     for(int i = IS.fict; i < IS.Nx + IS.fict; ++i) {
-        for (int j = IS.fict; j < IS.Ny + IS.fict; ++j) {
-            if (i < IS.step_x && j < IS.step_y) {
-                buffer << xc[i] << "," << yc[j] << "," << 0 << "," << 0 << "," << 0 << "," << 0 << "," << 0 << "\n";
-            }
-            else {
-                buffer << xc[i] << "," << yc[j] << "," << vx[i][j] << "," << vy[i][j] << "," << r[i][j] << "," << p[i][j] << "," << e[i][j] << "\n";
-            }
+        for(int j = IS.fict; j < IS.Ny + IS.fict; ++j) {
+            buffer << xc[i] << "," << yc[j] << "," << vx[i][j] << "," << vy[i][j] << "," << r[i][j] << "," << p[i][j] << "," << e[i][j] << "\n";
         }
     }
     std::string local_data = buffer.str();
@@ -1253,43 +1112,6 @@ void split_proc(int& p, int& px, int& py){
 }
 
 
-void mpi_get_px_py(int p, int Nx, int Ny, int* px, int* py) {
-	if (p == 1) {
-		(*px) = 1;
-		(*py) = 1;
-	}
-	else {
-		int best_px, best_py;
-		int best_p;
-		int mera = -1;
-		for (int i = 2; i < p + 1; i++) {
-			int first, second;
-			for (int j = 1; j < sqrt(i) + 1; j++) {
-				if (i % j == 0) {
-					first = j;
-					second = i / j;
-				}
-			}
-			if (i - abs(second - first) > mera) {
-				mera = i - abs(second - first);
-				best_px = first;
-				best_py = second;
-				best_p = i;
-			}
-		}
-		if ((Nx % best_px) * (Ny % best_py) < (Nx % best_py) * (Ny % best_px)) {
-			(*px) = best_px;
-			(*py) = best_py;
-		}
-		else {
-			(*px) = best_py;
-			(*py) = best_px;
-		}
-	}
-}
-
-
-
 void split_plane(int px, int py, int myrank, int Nx, int Ny, int& Nx_proc, int& Ny_proc, int& Nx_start, int& Nx_end, int& Ny_start, int& Ny_end){
     int base_x = Nx / px;
     int base_y = Ny / py;
@@ -1537,8 +1359,8 @@ void GKR_WENO_p(InitialState& IS, std::string out_dir, int& myrank, int& size, M
     yp_start = Ny_start * dy;
     yp_end = Ny_end * dy;
     InitialState params_proc = change_params(IS, Nx_proc, Ny_proc, xp_start, xp_end, yp_start, yp_end, myrank, px, py);
-    // printf("myrank = %d, px = %d, py = %d, Nx_proc = %d, Ny_proc = %d, x = (%.5f, %.5f), y = (%.5f, %.5f)\n", myrank, px, py, Nx_proc, Ny_proc, xp_start, xp_end, yp_start, yp_end);
-    printf("myrank = %d, b_right = %d, b_left = %d, b_down = %d, b_up = %d\n", myrank, params_proc.b_right, params_proc.b_left, params_proc.b_down, params_proc.b_up);
+    //printf("myrank = %d, px = %d, py = %d, Nx_proc = %d, Ny_proc = %d, x = (%.5f, %.5f), y = (%.5f, %.5f)\n", myrank, px, py, Nx_proc, Ny_proc, xp_start, xp_end, yp_start, yp_end);
+    //printf("myrank = %d, b_right = %d, b_left = %d, b_down = %d, b_up = %d\n", myrank, params_proc.b_right, params_proc.b_left, params_proc.b_down, params_proc.b_up);
     
     vec1d x(Nx_proc + 1 + 2 * IS.fict); 
     vec1d xc(Nx_proc + 1 + 2 * IS.fict);
@@ -1607,7 +1429,7 @@ void GKR_WENO_p(InitialState& IS, std::string out_dir, int& myrank, int& size, M
 
     x_grid(params_proc, xc, x);
     y_grid(params_proc, yc, y);
-    Init(params_proc, myrank, xc, yc, p, vx, vy, r, m, impx, impy, e);
+    Init(params_proc, xc, yc, p, vx, vy, r, m, impx, impy, e);
     Boundary_x(params_proc, m, impx, impy, e);
     Boundary_y(params_proc, m, impx, impy, e);
     calc_ei(params_proc, p, r, ei);
@@ -1618,7 +1440,7 @@ void GKR_WENO_p(InitialState& IS, std::string out_dir, int& myrank, int& size, M
     }
     write_out_p(params_proc, xc, yc, p, vx, vy, r, m, impx, impy, e, ei, step, time, out_dir, myrank, size, comm);
     
-    while (time < params_proc.t_end && step < IS.max_iter) {
+    while (time < params_proc.t_end) {
         dt = get_dt(params_proc, x, y, m, impx, impy, e);
         exchange_dt(params_proc, dt, x, y, m, impx, impy, e, myrank, size, comm); // time step
         time += dt;
@@ -1933,7 +1755,7 @@ void GKR_WENO(InitialState& IS, std::string out_dir){
 
     x_grid(IS, xc, x);
     y_grid(IS, yc, y);
-    Init(IS, 0, xc, yc, p, vx, vy, r, m, impx, impy, e);
+    Init(IS, xc, yc, p, vx, vy, r, m, impx, impy, e);
     Boundary_x(IS, m, impx, impy, e);
     Boundary_y(IS, m, impx, impy, e);
     calc_ei(IS, p, r, ei);
@@ -2206,16 +2028,15 @@ int main(int argc, char* argv[]){
 
     MPI_Barrier(MPI_COMM_WORLD);
     t1 = MPI_Wtime();
-    GKR_WENO_p(IS, "Godunov_2D_Makh", myrank, size, MPI_COMM_WORLD);
+    GKR_WENO_p(IS, "Godunov_2D_Soda", myrank, size, MPI_COMM_WORLD);
     MPI_Barrier(MPI_COMM_WORLD);
     if(myrank == 0) printf("Godunov_2D_p time: %.5f\n\n", MPI_Wtime() - t1);
 
-    /*
 	IS.s_type = 2;
 	IS.fict = 2;
     MPI_Barrier(MPI_COMM_WORLD);
     t1 = MPI_Wtime();
-    GKR_WENO_p(IS, "GK_2D_Makh_p", myrank, size, MPI_COMM_WORLD);
+    GKR_WENO_p(IS, "GK_2D_Soda", myrank, size, MPI_COMM_WORLD);
     MPI_Barrier(MPI_COMM_WORLD);
     if(myrank == 0) printf("GK_2D_p time: %.5f\n\n", MPI_Wtime() - t1);
     
@@ -2223,7 +2044,7 @@ int main(int argc, char* argv[]){
 	IS.fict = 2;
     MPI_Barrier(MPI_COMM_WORLD);
     t1 = MPI_Wtime();
-    GKR_WENO_p(IS, "GKR_2D_Makh_p", myrank, size, MPI_COMM_WORLD);
+    GKR_WENO_p(IS, "GKR_2D_Soda", myrank, size, MPI_COMM_WORLD);
     MPI_Barrier(MPI_COMM_WORLD);
     if(myrank == 0) printf("GKR_2D_p time: %.5f\n\n", MPI_Wtime() - t1);
 
@@ -2232,11 +2053,10 @@ int main(int argc, char* argv[]){
 	IS.fict = 3;
     MPI_Barrier(MPI_COMM_WORLD);
     t1 = MPI_Wtime();
-    GKR_WENO_p(IS, "WENO_2D_Makh", myrank, size, MPI_COMM_WORLD);
+    GKR_WENO_p(IS, "WENO_2D_Soda", myrank, size, MPI_COMM_WORLD);
     MPI_Barrier(MPI_COMM_WORLD);
     if(myrank == 0) printf("WENO_2D_p time: %.5f\n\n", MPI_Wtime() - t1);
-    */
-
+    
     /*
     if(myrank == 0){
         t1 = MPI_Wtime();
