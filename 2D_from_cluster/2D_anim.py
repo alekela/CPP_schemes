@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import os
+import shutil
 import imageio
 from imageio.v2 import imread
 
@@ -13,6 +14,13 @@ names = [f"Godunov_2D_{end}"]
 for filename in names:
 	steps = []
 	sep = ','
+	if f"Pics_{filename}" in os.listdir():
+		shutil.rmtree(f"Pics_{filename}")
+	os.mkdir(f"Pics_{filename}")
+	os.mkdir(os.path.join(f"Pics_{filename}", "P"))
+	os.mkdir(os.path.join(f"Pics_{filename}", "Rho"))
+	os.mkdir(os.path.join(f"Pics_{filename}", "Ux"))
+	os.mkdir(os.path.join(f"Pics_{filename}", "Uy"))
 	for file in os.listdir(filename):
 		if file[:5] == "Iter=":
 			# Получение номера итерации из имени файла
@@ -32,7 +40,6 @@ for filename in names:
 			uy = np.array(list(map(lambda x : x[3], data)))
 			rho = np.array(list(map(lambda x: x[4], data)))
 
-
 			Lx = 1
 			Ly = len(y)
 			for i in range(1, len(x)) :
@@ -48,19 +55,34 @@ for filename in names:
 			uy = np.reshape(uy, (Lx, Ly))[1:].T
 			rho = np.reshape(rho, (Lx, Ly))[1:].T
 
-
-
 			fig, ax = plt.subplots(1, 1)
 			c = ax.pcolormesh(x, y, rho, cmap = 'jet')
 			fig.colorbar(c, ax = ax)
+			plt.savefig(os.path.join(f"Pics_{filename}", "Rho", f"Iter={step}.png"))
+			fig, ax = plt.subplots(1, 1)
 
-			plt.savefig(f"Pics/2D_{filename}_Iter={step}.png")
+			c = ax.pcolormesh(x, y, P, cmap = 'jet')
+			fig.colorbar(c, ax = ax)
+			plt.savefig(os.path.join(f"Pics_{filename}", "P", f"Iter={step}.png"))
+			fig, ax = plt.subplots(1, 1)
+
+			c = ax.pcolormesh(x, y, ux, cmap = 'jet')
+			fig.colorbar(c, ax = ax)
+			plt.savefig(os.path.join(f"Pics_{filename}", "Ux", f"Iter={step}.png"))
+			fig, ax = plt.subplots(1, 1)
+
+			c = ax.pcolormesh(x, y, uy, cmap = 'jet')
+			fig.colorbar(c, ax = ax)
+			plt.savefig(os.path.join(f"Pics_{filename}", "Uy", f"Iter={step}.png"))
 
 
-	images = []
-	steps.sort()
-	for step in steps :
-		images.append(imread(os.path.join("Pics", f"2D_{filename}_Iter={step}.png")))
-	imageio.mimsave(f"Res_{filename}.gif", images)
-	print(f"Анимация сохранена в Res_{filename}.gif.")
+	
+	species = ["P", "Rho", "Ux", "Uy"]
+	for s in species:
+		images = []
+		steps.sort()
+		for step in steps :
+			images.append(imread(os.path.join(f"Pics_{filename}", s, f"Iter={step}.png")))
+		imageio.mimsave(f"Res_{filename}_{s}.gif", images)
+		print(f"Анимация сохранена в Res_{filename}_{s}.gif.")
 
